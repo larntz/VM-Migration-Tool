@@ -41,6 +41,7 @@ namespace MToolVapiClient
             {
                 var serverInfo = File.ReadAllLines("../../../Assets/server.txt");
                 vClient.IgnoreServerCertificateErrors = true;
+                Trace.WriteLine(serverInfo[0], "VCENTER URL");
                 vClient.Connect(serverInfo[0]);
                 vClient.Login(serverInfo[1], serverInfo[2]);
             }
@@ -102,11 +103,16 @@ namespace MToolVapiClient
             Trace.WriteLine(virtualMachine.Name, "Setting up RelocationSpec for VM");
             Regex storagePodRegex = new Regex(@"group");
 
-            ManagedObjectReference targetVM = GetVirtualMachine(virtualMachine.Name)?.MoRef;
+            VirtualMachine targetVM = GetVirtualMachine(virtualMachine.Name);
+            if (targetVM == null)
+            {
+                Trace.WriteLine(virtualMachine.Name, "GetRelocateionSPec(): VM NOT FOUND");
+                return null;
+            }
             ManagedObjectReference targetDatastore = GetDatastoreMoRef(virtualMachine.DestinationDatastore);
-
+                        
             PlacementSpec placementSpec = new PlacementSpec();
-            placementSpec.Vm = targetVM;
+            placementSpec.Vm = targetVM.MoRef;
             placementSpec.Priority = VirtualMachineMovePriority.highPriority;
             Match match = storagePodRegex.Match(targetDatastore.Value);
             if(match.Success)
@@ -130,13 +136,19 @@ namespace MToolVapiClient
                 }
                 placementSpec.Hosts = targetCluster.Host;
             }
-            
+            ManagedObjectReference[] targetNewtorks = GetTargetNetworks(targetVM.Network, placementSpec.Hosts);
+
             PlacementResult placementResult = targetCluster.PlaceVm(placementSpec);
             if (placementResult.DrsFault == null)
             {                
                 return (VirtualMachineRelocateSpec) ((PlacementAction)placementResult.Recommendations[0].Action[0]).RelocateSpec;
             }
+
             Trace.WriteLine(placementResult.DrsFault.Reason, "DRS FAULT");
+            foreach(var faultsByVm in placementResult.DrsFault.FaultsByVm)
+                foreach(var fault in faultsByVm.Fault)
+                    Trace.WriteLine(fault.LocalizedMessage, targetVM.Name + ": DRS FAULT");
+
             return null;
         }
         private ManagedObjectReference GetDatastoreMoRef(string name)
@@ -166,6 +178,10 @@ namespace MToolVapiClient
             filter.Add("Name", name);
             return (HostSystem) vClient.FindEntityView(typeof(HostSystem), null, filter, null);
         }
+        private HostSystem GetHost(ManagedObjectReference moRef)
+        {
+            return (HostSystem)vClient.GetView(moRef, null);
+        }
         private ClusterComputeResource GetCluster(string name)
         {
             NameValueCollection filter = new NameValueCollection();
@@ -175,6 +191,35 @@ namespace MToolVapiClient
         private ClusterComputeResource GetCluster(ManagedObjectReference clusterMoRef)
         {
             return (ClusterComputeResource)vClient.GetView(clusterMoRef, null);
+        }
+        private ManagedObjectReference[] GetTargetNetworks(ManagedObjectReference[] networks, ManagedObjectReference[] hosts)
+        {
+            Regex networkNetworkRegex = new Regex(@"Network-network-\d+");
+            Regex networkDVPRegex = new Regex(@"DistributedVirtualPortgroup-dvportgroup-\d+");
+            foreach(var nwMoRef in networks)
+            {                
+                Trace.WriteLine(nwMoRef, "Network MoRef");                
+                if(networkNetworkRegex.Match(nwMoRef.ToString()).Success)
+                {
+                    // we've got ourselves an old fashioned virtual network
+                    var network = (Network) vClient.GetView(nwMoRef, null);
+                    HostPortGroup[] portgroups = GetHost(network.Host[0]).Config.Network.Portgroup;
+                    foreach (var pg in portgroups)
+                    {
+                        Trace.WriteLine(pg.Spec.VlanId, pg.Spec.Name + ": Network Vlan");
+                    }
+                    Trace.WriteLine(network.Name, "Network Name");
+                }
+                else if (networkDVPRegex.Match(nwMoRef.ToString()).Success)
+                {
+                    // we've got ourselves a fancy pants distributed port group
+                    var network = (DistributedVirtualPortgroup)vClient.GetView(nwMoRef, null);
+                    Trace.WriteLine(((VmwareDistributedVirtualSwitchVlanIdSpec)((VMwareDVSPortSetting)network.Config.DefaultPortConfig).Vlan).VlanId, network.Name + ": DVSPortgroup Vlan");
+                    
+                    Trace.WriteLine(network.Name, "DVSPortgroup Name");
+                }                
+            }
+            return new[] { new ManagedObjectReference() };
         }
 
     }
