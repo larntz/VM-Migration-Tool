@@ -21,6 +21,8 @@
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <CheckForOverflowUnderflow>true</CheckForOverflowUnderflow>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
@@ -39,9 +41,12 @@
     <Reference Include="System.Data" />
     <Reference Include="System.Net.Http" />
     <Reference Include="System.Xml" />
-    <Reference Include="VMware.Vim, Version=6.7.0.1825, Culture=neutral, processorArchitecture=MSIL">
+    <Reference Include="VMware.Vim, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\..\..\Documents\PowerShell\Modules\VMware.Vim\6.7.0.12483609\net45\VMware.Vim.dll</HintPath>
+      <HintPath>$(USERPROFILE)\Documents\PowerShell\Modules\VMware.Vim\6.7.0.13964812\net45\VMware.Vim.dll</HintPath>
+	  <HintPath>$(USERPROFILE)\Documents\WindowsPowerShell\Modules\VMware.Vim\6.7.0.13964812\net45\VMware.Vim.dll</HintPath>
+	  <Deterministic>false</Deterministic>
+      <Private>False</Private>
     </Reference>
   </ItemGroup>
   <ItemGroup>
