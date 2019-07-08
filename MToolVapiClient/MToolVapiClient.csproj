@@ -45,7 +45,7 @@
       <SpecificVersion>False</SpecificVersion>
       <HintPath>$(USERPROFILE)\Documents\PowerShell\Modules\VMware.Vim\6.7.0.13964812\net45\VMware.Vim.dll</HintPath>
       <HintPath>$(USERPROFILE)\Documents\WindowsPowerShell\Modules\VMware.Vim\6.7.0.13964812\net45\VMware.Vim.dll</HintPath>
-      <Private>False</Private>
+      <Private>True</Private>
     </Reference>
   </ItemGroup>
   <ItemGroup>
