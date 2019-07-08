@@ -212,7 +212,7 @@ namespace MToolVapiClient
                 }
                 else if (networkDVPRegex.Match(nwMoRef.ToString()).Success)
                 {
-                    // we've got ourselves a fancy pants distributed port group
+                    // we've got ourselves a fancy pants distributed portgroup
                     var network = (DistributedVirtualPortgroup)vClient.GetView(nwMoRef, null);
                     Trace.WriteLine(((VmwareDistributedVirtualSwitchVlanIdSpec)((VMwareDVSPortSetting)network.Config.DefaultPortConfig).Vlan).VlanId, network.Name + ": DVSPortgroup Vlan");
                     

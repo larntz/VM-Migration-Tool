@@ -40,7 +40,7 @@
     <Reference Include="System.Net.Http" />
     <Reference Include="System.Xml" />
     <Reference Include="VMware.Vim">
-      <HintPath>..\..\..\PowerCLI\VMware.Vim\6.7.0.13964812\net45\VMware.Vim.dll</HintPath>
+      <HintPath>..\..\..\PowerCLI\VMware.Vim\6.7.0.12483609\net45\VMware.Vim.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>
