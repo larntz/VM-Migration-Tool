@@ -44,8 +44,7 @@
     <Reference Include="VMware.Vim, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>$(USERPROFILE)\Documents\PowerShell\Modules\VMware.Vim\6.7.0.13964812\net45\VMware.Vim.dll</HintPath>
-	  <HintPath>$(USERPROFILE)\Documents\WindowsPowerShell\Modules\VMware.Vim\6.7.0.13964812\net45\VMware.Vim.dll</HintPath>
-	  <Deterministic>false</Deterministic>
+      <HintPath>$(USERPROFILE)\Documents\WindowsPowerShell\Modules\VMware.Vim\6.7.0.13964812\net45\VMware.Vim.dll</HintPath>
       <Private>False</Private>
     </Reference>
   </ItemGroup>
