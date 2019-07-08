@@ -10,7 +10,7 @@ Migration virtual machines in a vSphere environment.
 
 ### VMware.PowerCLI Installation
 
-Install using this _exact_ command or you will have to manually fix the reference for __MToolVapiClient__. Can be run from PowerShell Core or Windows PowerShell.
+Install using this _exact_ command or you will have to manually fix the Vmware.Vim reference for __MToolVapiClient__. Can be run from PowerShell Core or Windows PowerShell.
 
 `Install-Module VMware.PowerCLI -RequiredVersion 11.3.0.13990089 -Scope CurrentUser -Force`
 
