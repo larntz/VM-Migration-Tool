@@ -85,8 +85,26 @@ namespace MToolVapiClient
         {
             VirtualMachineRelocateSpec vmRelocSpec = GetRelocationSpec(virtualMachine);
             if (vmRelocSpec != null)
-                return GetVirtualMachine(virtualMachine.Name)
-                    .RelocateVM_Task(vmRelocSpec, VirtualMachineMovePriority.highPriority).ToString();
+            {
+                try
+                {
+                    Trace.WriteLine("==========================================");
+                    Trace.WriteLine("Attempating to migrate " + virtualMachine.Name.ToUpper());
+                    Trace.WriteLine("Moving to host " + vmRelocSpec.Host.ToString());
+                    if (vmRelocSpec.DeviceChange.Count() > 0)
+                        Trace.WriteLine("Moving to network " + vmRelocSpec.DeviceChange[0].Device.DeviceInfo.Summary);
+                    Trace.WriteLine("Moving to datastore" + vmRelocSpec.Datastore.ToString());
+                    Trace.WriteLine("==========================================");
+
+                    return GetVirtualMachine(virtualMachine.Name)
+                        .RelocateVM_Task(vmRelocSpec, VirtualMachineMovePriority.highPriority).ToString();
+                }
+                catch (Exception e)
+                {
+                    Trace.WriteLine(e.Message);
+                    Trace.WriteLine(e.StackTrace);
+                }
+            }
 
             Trace.WriteLine("MigrateVirtualMachine(): returning null");
             return null;
@@ -120,16 +138,16 @@ namespace MToolVapiClient
             else
                 placementSpec.Datastores = new[] { targetDatastore };
 
-            HostSystem targetHost = GetHost(virtualMachine.DestinationHost);
+            var targetHost = (HostSystem) GetViewByName<HostSystem>(virtualMachine.DestinationHost);
             ClusterComputeResource targetCluster;
             if (targetHost != null)
             {
-                targetCluster = GetCluster(targetHost.Parent);
+                targetCluster = (ClusterComputeResource) GetViewByRef<ClusterComputeResource>(targetHost.Parent);
                 placementSpec.Hosts = new[] { targetHost.MoRef };
             }
             else
             {
-                targetCluster = GetCluster(virtualMachine.DestinationHost);
+                targetCluster = (ClusterComputeResource) GetViewByName<ClusterComputeResource>(virtualMachine.DestinationHost);
                 if (targetCluster == null)
                 {
                     return null;
@@ -137,12 +155,22 @@ namespace MToolVapiClient
                 placementSpec.Hosts = targetCluster.Host;
             }
 
-            Trace.WriteLine("Calling updatevmnetworkdevices");
-            UpdateVMNetworkDevices(targetVM, placementSpec.Hosts);
+            var networkDeviceConfigSpecs = UpdateVMNetworkDevices(targetVM, placementSpec.Hosts);
+            placementSpec.RelocateSpec = new VirtualMachineRelocateSpec { DeviceChange = networkDeviceConfigSpecs.ToArray() };
+
 
             PlacementResult placementResult = targetCluster.PlaceVm(placementSpec);
+
             if (placementResult.DrsFault == null)
-                return (VirtualMachineRelocateSpec)((PlacementAction)placementResult.Recommendations[0].Action[0]).RelocateSpec;
+            {
+                var recommendedRelocSpec = (VirtualMachineRelocateSpec)((PlacementAction)placementResult.Recommendations[0].Action[0]).RelocateSpec;
+                placementSpec.RelocateSpec.Host = recommendedRelocSpec.Host;
+                placementSpec.RelocateSpec.Datastore = recommendedRelocSpec.Datastore;
+                placementSpec.RelocateSpec.Pool = recommendedRelocSpec.Pool;
+                placementSpec.RelocateSpec.Folder = recommendedRelocSpec.Folder;
+                return placementSpec.RelocateSpec;
+                
+            }
             
 
             Trace.WriteLine(placementResult.DrsFault.Reason, "DRS FAULT");
@@ -152,34 +180,35 @@ namespace MToolVapiClient
 
             return null;
         }
-        private void UpdateVMNetworkDevices(VirtualMachine virtualMachine, ManagedObjectReference[] hosts)
-        {
-            //ManagedObjectReference[] targetNetworks = GetTargetNetworks(virtualMachine.Network, hosts);
-            Trace.WriteLine(virtualMachine.Network[0], "VM NETWORK");
+        private List<VirtualDeviceConfigSpec> UpdateVMNetworkDevices(VirtualMachine virtualMachine, ManagedObjectReference[] hosts)
+        {            
             List<VirtualDeviceConfigSpec> nicConfigSpecs = new List<VirtualDeviceConfigSpec>();
-            Regex isDvSwitch = new Regex(@"DVSwitch");
 
             var nics = virtualMachine.Config.Hardware.Device.Where(x => x.GetType().IsSubclassOf(typeof(VirtualEthernetCard)));
             foreach(VirtualEthernetCard nic in nics)
             {
-                var spec = new VirtualDeviceConfigSpec();
-                spec.Operation = VirtualDeviceConfigSpecOperation.edit;
-                spec.Device = nic;
-                if (isDvSwitch.Match(nic.DeviceInfo.Summary).Success)
-                {
-                    Trace.WriteLine("DVSWITCH DETECTED");
-                    foreach(var network in virtualMachine.Network)
-                        GetTargetNetwork(network, hosts);
-                }
-                else
-                {
-                    foreach (var network in virtualMachine.Network)
-                        GetTargetNetwork(network, hosts);
-                }
-                Trace.WriteLine(nic.DeviceInfo.Summary, "NIC Summary");
+                if (nic.Backing is VirtualEthernetCardNetworkBackingInfo)
+                    nic.Backing = GetNetworkByVlanId(nic, hosts);
 
+                if (nic.Backing == null)
+                    continue;
+
+                var spec = new VirtualDeviceConfigSpec
+                {
+                    Operation = VirtualDeviceConfigSpecOperation.edit,
+                    Device = nic
+                };
+
+                nic.DeviceInfo = new Description
+                {
+                    Summary = ((VirtualEthernetCardNetworkBackingInfo)nic.Backing).DeviceName,
+                    Label = nic.DeviceInfo.Label
+                };
+                
+                Trace.WriteLine(nic.DeviceInfo.Summary, virtualMachine.Name + " NIC Summary");
+                nicConfigSpecs.Add(spec);
             }
-
+            return nicConfigSpecs;
         }
         private ManagedObjectReference GetDatastoreMoRef(string name)
         {
@@ -202,71 +231,75 @@ namespace MToolVapiClient
             }
             return null;
         }
-        private HostSystem GetHost(string name)
+        private VirtualDeviceBackingInfo GetNetworkByVlanId(VirtualEthernetCard nic, ManagedObjectReference[] hosts)
         {
-            NameValueCollection filter = new NameValueCollection();
-            filter.Add("Name", name);
-            return (HostSystem) vClient.FindEntityView(typeof(HostSystem), null, filter, null);
-        }
-        private HostSystem GetHost(ManagedObjectReference moRef)
-        {
-            return (HostSystem)vClient.GetView(moRef, null);
-        }
-        private ClusterComputeResource GetCluster(string name)
-        {
-            NameValueCollection filter = new NameValueCollection();
-            filter.Add("Name", name);
-            return (ClusterComputeResource)vClient.FindEntityView(typeof(ClusterComputeResource), null, filter, null);
-        }
-        private ClusterComputeResource GetCluster(ManagedObjectReference clusterMoRef)
-        {
-            return (ClusterComputeResource)vClient.GetView(clusterMoRef, null);
-        }
-        private ManagedObjectReference GetTargetNetwork(ManagedObjectReference network, ManagedObjectReference[] hosts)
-        {
-            Regex networkNetworkRegex = new Regex(@"Network-network-\d+");
-            Regex networkDVPRegex = new Regex(@"DistributedVirtualPortgroup-dvportgroup-\d+");
+            // see if we can find another virtual network on the same vlan with a different name. 
+            var networkMoRef = ((VirtualEthernetCardNetworkBackingInfo)nic.Backing).Network;
+            var virtualNetwork = (Network)vClient.GetView(networkMoRef, null);
+            HostPortGroup portgroup = ((HostSystem)GetViewByRef<HostSystem>(hosts.FirstOrDefault()))
+                                                    .Config.Network.Portgroup.FirstOrDefault(x => x.Spec.Name == virtualNetwork.Name);
 
-            Trace.WriteLine(network, "NETWORK MOREF");
-            if(networkNetworkRegex.Match(network.ToString()).Success)
+            if (portgroup == null)
             {
-                // we've got ourselves an old fashioned virtual network
-                var virtualNetwork = (Network) vClient.GetView(network, null);
-                HostPortGroup portgroup = GetHost(hosts.FirstOrDefault()).Config.Network.Portgroup.FirstOrDefault(x => x.Spec.Name == virtualNetwork.Name);
-                if(portgroup != null)
-                {
-                    Trace.WriteLine(portgroup.Spec.Name, "FOUND NETWORK ON NEW HOST");
-                }
+                // Check for other virtual networks on the same vlan.
+                int currentPortgroupVlanId = ((HostSystem)GetViewByRef<HostSystem>(((Network)vClient.GetView(networkMoRef, null)).Host.FirstOrDefault()))
+                                        .Config.Network.Portgroup.FirstOrDefault(x => x.Spec.Name == virtualNetwork.Name)
+                                        .Spec.VlanId;
+                HostPortGroup portgroupByVlan = ((HostSystem)GetViewByRef<HostSystem>(hosts.FirstOrDefault()))
+                                        .Config.Network.Portgroup.FirstOrDefault(x => x.Spec.VlanId == currentPortgroupVlanId);
 
-                //foreach (var pg in portgroups)
-                //{
-                       
-                //    Trace.WriteLine(pg.Spec.VlanId, pg.Spec.Name + ": Network Vlan");
-                //}
+                if (portgroupByVlan != null)
+                {
+                    var targetVirtualNetwork = (Network)GetViewByName<Network>(portgroupByVlan.Spec.Name);
+                    VirtualEthernetCardNetworkBackingInfo nicBacking = new VirtualEthernetCardNetworkBackingInfo
+                    {
+                        DeviceName = targetVirtualNetwork.Name,
+                        Network = targetVirtualNetwork.MoRef
+                    };
+                    // we found a virtual network on one of the new target hosts. return that as network backing
+                    return nicBacking;
+                }
             }
-            else if (networkDVPRegex.Match(network.ToString()).Success)
-            {
-                Trace.WriteLine("++++++++++ inside if");
-                // we've got ourselves a fancy pants distributed portgroup
-                var dvPortgroup = (DistributedVirtualPortgroup)vClient.GetView(network, null);
-                if (dvPortgroup.Host.Contains(hosts.FirstOrDefault()))
-                    Trace.WriteLine(dvPortgroup.Name, "FOUND DVPORTGROUP ON NEW HOST");
 
-                Trace.WriteLine(dvPortgroup.Host.Length, "HOSTS IN DVPORTGROUP");
-                //var targetHost = dvPortgroup.Host.Contains(hosts.FirstOrDefault());
-                if(!dvPortgroup.Host.Contains(hosts.FirstOrDefault()))
-                {
-                    Trace.WriteLine("vportgroup is not on target host(s)");
-                }
-                foreach (var x in dvPortgroup.Host)
-                    Trace.WriteLine(x, "DVPORTGROUP HOST");
-
-                //Trace.WriteLine(((VmwareDistributedVirtualSwitchVlanIdSpec)((VMwareDVSPortSetting)dvPortgroup.Config.DefaultPortConfig).Vlan).VlanId, dvPortgroup.Name + ": DVSPortgroup Vlan");                    
-                //Trace.WriteLine(dvPortgroup.Name, "DVSPortgroup Name");
-            }                
-            
-            return  new ManagedObjectReference() ;
+            return null;
         }
+
+        private VirtualDeviceBackingInfo FindNetwork(Network virtualNetwork, ManagedObjectReference[] hosts)
+        {   
+            // Check for other virtual networks on the same vlan.
+            int currentPortgroupVlanId = ((HostSystem) GetViewByRef<HostSystem>(((Network)vClient.GetView(virtualNetwork.MoRef, null)).Host.FirstOrDefault()))
+                                    .Config.Network.Portgroup.FirstOrDefault(x => x.Spec.Name == virtualNetwork.Name)
+                                    .Spec.VlanId;
+            HostPortGroup portgroupByVlan = ((HostSystem) GetViewByRef<HostSystem>(hosts.FirstOrDefault()))
+                                    .Config.Network.Portgroup.FirstOrDefault(x => x.Spec.VlanId == currentPortgroupVlanId);
+            if (portgroupByVlan != null)
+            {
+                var targetVirtualNetwork = (Network)GetViewByName<Network>(portgroupByVlan.Spec.Name);
+                VirtualEthernetCardNetworkBackingInfo nicBacking = new VirtualEthernetCardNetworkBackingInfo
+                {
+                    DeviceName = targetVirtualNetwork.Name,
+                    Network = targetVirtualNetwork.MoRef
+                };
+                // we found a virtual network on one of the new target hosts. return that as network backing
+                return nicBacking;
+            }
+
+            // no luck
+            return null;
+        }        
+
+        private EntityViewBase GetViewByName<T>(string name)
+        {
+            NameValueCollection filter = new NameValueCollection();
+            filter.Add("Name", name);
+            return vClient.FindEntityView(typeof(T), null, filter, null);
+        }
+
+        private EntityViewBase GetViewByRef<T>(ManagedObjectReference moRef)
+        {
+            return (EntityViewBase) vClient.GetView(moRef, null);
+        }
+
 
     }
 }
