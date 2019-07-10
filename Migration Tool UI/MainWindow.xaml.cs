@@ -75,7 +75,29 @@ namespace Migration_Tool_UI
 
             var result = await Task.Run(() =>
             {
-                migrationVM.MoRef = vapiConnection.MigrateVirtualMachine(migrationVM);
+                try
+                {
+                    migrationVM.MoRef = vapiConnection.MigrateVirtualMachine(migrationVM);
+                }
+                catch (Exception e)
+                {
+                    // this is horrible and hacky but good enough for now.
+                    // polish this! => add error message to MigrationTask for inclusion in datagrid/logs/output?
+                    Task.Run(() =>
+                    {
+                        MessageBoxResult exceptionBox = MessageBox.Show(e.Source + " Says:\n\n" + e.Message, "Problem Migrating " + migrationVM.Name.ToUpper(), MessageBoxButton.OK);
+                    });
+                    return new MigrationTask
+                    {
+                        State = "error",
+                        Start = DateTime.Now,
+                        EntityName = migrationVM.Name,
+                        DestinationStorage = migrationVM.DestinationStorage,
+                        DestinationCompute = migrationVM.DestinationCompute,
+                        Progress = migrationVM.Progress
+                    };
+                }
+                
                 if (migrationVM.MoRef == null)
                 {
                     Trace.WriteLine(migrationVM.Name, "RunMigration(): MigrateVirtualMachine returned null MoRef.");
@@ -85,11 +107,27 @@ namespace Migration_Tool_UI
                         State = "error",
                         Start = DateTime.Now,
                         EntityName = migrationVM.Name,
-                        DestinationDatastore = migrationVM.DestinationDatastore,
-                        DestinationHost = migrationVM.DestinationHost,
+                        DestinationStorage = migrationVM.DestinationStorage,
+                        DestinationCompute = migrationVM.DestinationCompute,
                         Progress = migrationVM.Progress
                     };
                 }
+                else if(migrationVM.MoRef == "skipped-verifyfailed")
+                {
+                    Trace.WriteLine(migrationVM.Name, "RunMigration(): Skipped VM.");
+                    // task failed to start. Return what we know.
+                    return new MigrationTask
+                    {
+                        State = "skipped",
+                        StateReason = "VM is already at destination.",
+                        Start = DateTime.Now,
+                        EntityName = migrationVM.Name,
+                        DestinationStorage = migrationVM.DestinationStorage,
+                        DestinationCompute = migrationVM.DestinationCompute,
+                        Progress = migrationVM.Progress
+                    };
+                }
+
                 bool running = true;
                 do
                 {
@@ -116,6 +154,7 @@ namespace Migration_Tool_UI
             {   
                 var itemName = MigrationGridList.FirstOrDefault(x => x.Name == migrationTask.EntityName);
                 itemName.State = migrationTask.State;
+                itemName.StateReason = migrationTask.StateReason;
                 itemName.Progress = migrationTask.Progress;
                 itemName.Start = migrationTask.Start;
                 itemName.Finish = DateTime.Now;
@@ -127,6 +166,7 @@ namespace Migration_Tool_UI
             {
                 if (migrationTask.State != null)
                     item.State = migrationTask.State;
+                item.StateReason = migrationTask.StateReason;
                 item.Progress = migrationTask.Progress;
                 item.Start = migrationTask.Start;
                 item.Finish = migrationTask.Finish;
@@ -165,23 +205,23 @@ namespace Migration_Tool_UI
                     {
                         if (col.TrimStart('"').TrimEnd('"').ToUpper() == "NAME")
                             nameIndex = (sbyte)Array.IndexOf(columns, col);
-                        if (col.TrimStart('"').TrimEnd('"').ToUpper() == "DESTINATIONDATASTORE")
+                        if (col.TrimStart('"').TrimEnd('"').ToUpper() == "DESTINATIONSTORAGE")
                             datastoreIndex = (sbyte)Array.IndexOf(columns, col);
-                        if (col.TrimStart('"').TrimEnd('"').ToUpper() == "DESTINATIONHOST")
+                        if (col.TrimStart('"').TrimEnd('"').ToUpper() == "DESTINATIONCOMPUTE")
                             hostIndex = (sbyte)Array.IndexOf(columns, col);
                     }
                     if (nameIndex != -1 && hostIndex != -1 && datastoreIndex != -1)
                         needIndexes = false;
-                    Trace.WriteLine("Name index = {0}", nameIndex.ToString());
-                    Trace.WriteLine("Host index = {0}", hostIndex.ToString());
-                    Trace.WriteLine("Datastore index = {0}", datastoreIndex.ToString());
+                    //Trace.WriteLine("Name index = {0}", nameIndex.ToString());
+                    //Trace.WriteLine("Host index = {0}", hostIndex.ToString());
+                    //Trace.WriteLine("Datastore index = {0}", datastoreIndex.ToString());
                 }
                 else
                 {
                     GridRow vm = new GridRow();
                     vm.Name = columns[nameIndex].TrimStart('"').TrimEnd('"');
-                    vm.DestinationDatastore = columns[datastoreIndex].TrimStart('"').TrimEnd('"');
-                    vm.DestinationHost = columns[hostIndex].TrimStart('"').TrimEnd('"');
+                    vm.DestinationStorage = columns[datastoreIndex].TrimStart('"').TrimEnd('"');
+                    vm.DestinationCompute = columns[hostIndex].TrimStart('"').TrimEnd('"');
                     vm.State = "waiting";
                     vm.Progress = 0;
                     MigrationGridList.Add(vm);

@@ -18,7 +18,7 @@ namespace Migration_Tool_UI
         }
 
         // TODO finish this for sorting...
-        public enum STATEID : int {Running, Waiting, Error, Success }
+        public enum STATEID : int {Running, Waiting, Error, Success, Skipped }
         public int StateId
         {
             get
@@ -31,6 +31,8 @@ namespace Migration_Tool_UI
                         return (int)STATEID.Error;
                     case "success":
                         return (int)STATEID.Success;
+                    case "skipped":
+                        return (int)STATEID.Skipped;
                     default:
                         return (int)STATEID.Waiting;
                 }
@@ -49,6 +51,23 @@ namespace Migration_Tool_UI
                 if (value != progress)
                 {
                     progress = value;
+                    NotifyPropertyChanged();
+                }
+            }
+        }
+
+        private string stateReason = String.Empty;
+        public new string StateReason
+        {
+            get
+            {
+                return stateReason;
+            }
+            set
+            {
+                if (value != stateReason)
+                {
+                    stateReason = value;
                     NotifyPropertyChanged();
                 }
             }

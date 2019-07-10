@@ -69,17 +69,17 @@
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
-                <DataGridTemplateColumn Header="Destination Host" >
+                <DataGridTemplateColumn Header="Compute" >
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <Label Content="{Binding DestinationHost}" />
+                            <Label Content="{Binding DestinationCompute}" />
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
-                <DataGridTemplateColumn Header="Destination Datastore" >
+                <DataGridTemplateColumn Header="Storage" >
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <Label Content="{Binding DestinationDatastore}" />
+                            <Label Content="{Binding DestinationStorage}" />
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
@@ -96,6 +96,11 @@
                             <Label Content="{Binding State}" />
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
+                    <!--<DataGridTemplateColumn.CellStyle>
+                        <Style TargetType="DataGridCell">
+                            <Setter Property="ToolTip" Value="{Binding StateReason}" />
+                        </Style>
+                    </DataGridTemplateColumn.CellStyle>-->
                 </DataGridTemplateColumn>
                 <DataGridTemplateColumn Header="Progress" Width="*">
                     <DataGridTemplateColumn.CellTemplate>
@@ -157,16 +162,22 @@
                                                                 <Setter Property="Foreground" Value="#04060f" />
                                                                 <Setter Property="FontWeight" Value="Bold" />
                                                             </DataTrigger>
+                                                            <!-- error -->
+                                                            <DataTrigger Binding="{Binding Name}" Value="2">
+                                                                <Setter Property="Background" Value="#c1403d"/>
+                                                                <Setter Property="Foreground" Value="#04060f"/>
+                                                                <Setter Property="FontWeight" Value="Bold" />
+                                                            </DataTrigger>
                                                             <!-- success -->
                                                             <DataTrigger Binding="{Binding Name}" Value="3">
                                                                 <Setter Property="Background" Value="#6a8a82" />
                                                                 <Setter Property="Foreground" Value="#04060f" />
                                                                 <Setter Property="FontWeight" Value="Bold" />
                                                             </DataTrigger>
-                                                            <!-- error -->
-                                                            <DataTrigger Binding="{Binding Name}" Value="2">
-                                                                <Setter Property="Background" Value="#c1403d"/>
-                                                                <Setter Property="Foreground" Value="#04060f"/>
+                                                            <!-- skipped -->
+                                                            <DataTrigger Binding="{Binding Name}" Value="4">
+                                                                <Setter Property="Background" Value="Black"/>
+                                                                <Setter Property="Foreground" Value="#a79c93"/>
                                                                 <Setter Property="FontWeight" Value="Bold" />
                                                             </DataTrigger>
                                                         </Style.Triggers>

@@ -16,6 +16,8 @@ namespace Migration_Tool_UI
                     return "Error";
                 case (int)GridRow.STATEID.Success:
                     return "Success";
+                case (int)GridRow.STATEID.Skipped:
+                    return "Skipped";
                 default:
                     return "Waiting";
                 
@@ -35,6 +37,8 @@ namespace Migration_Tool_UI
                     return (int)GridRow.STATEID.Error;
                 case "success":
                     return (int)GridRow.STATEID.Success;
+                case "skipped":
+                    return (int)GridRow.STATEID.Skipped;
                 default:
                     return (int)GridRow.STATEID.Waiting;
             }
