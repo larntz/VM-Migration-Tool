@@ -8,29 +8,45 @@ using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Linq;
 using VMware.Vim;
+using NLog;
 
 
 namespace MToolVapiClient
 {    
     public class VAPIConnection
     {
-        readonly VimClient vClient = new VimClientImpl();
+        private static readonly NLog.Logger Logger = NLog.LogManager.GetCurrentClassLogger();
+        private readonly VimClient vClient = new VimClientImpl();
 
         public readonly int MAX_MIGRATIONS = 2;
         public VAPIConnection()
         {
+            var config = new NLog.Config.LoggingConfiguration();
+
+            // Targets where to log to: File and Console
+            var logfile = new NLog.Targets.FileTarget("logfile") { FileName = "MToolVapiClient.log", Layout= "${longdate} | ${level:uppercase=true:padding=-5:fixedLength=true} | ${logger:padding=-35:fixedLength=true} | ${message}" };
+            var logconsole = new NLog.Targets.ConsoleTarget("logconsole") { Layout = "${longdate} | ${level:uppercase=true:padding=-5:fixedLength=true} | ${logger:padding=-35:fixedLength=true} | ${message}" };
+
+            // Rules for mapping loggers to targets            
+            config.AddRule(LogLevel.Trace, LogLevel.Fatal, logconsole);
+            config.AddRule(LogLevel.Debug, LogLevel.Fatal, logfile);
+
+            // Apply config           
+            NLog.LogManager.Configuration = config;
+
+            Logger.Info("Logging Initialized");
             try
             {
                 var serverInfo = File.ReadAllLines("../../../Assets/server.txt");
                 vClient.IgnoreServerCertificateErrors = true;
-                Trace.WriteLine(serverInfo[0], "VCENTER URL");
+                Logger.Info("Connecting to server {0}", serverInfo[0]);
                 vClient.Connect(serverInfo[0]);
                 vClient.Login(serverInfo[1], serverInfo[2]);
             }
             catch (VimException e)
             {
-                Trace.WriteLine(e.Message, "Exception in VAPIConnection() constructor");
-                Trace.WriteLine(e.StackTrace, "Exception in VAPIConnection() constructor");
+                Logger.Error("EXCEPTION: {0}", e.Message);
+                Logger.Error("EXCEPTION: {0}", e.StackTrace);
             }
         }
 
@@ -88,114 +104,131 @@ namespace MToolVapiClient
             MigrationVMDetail vmDetail = new MigrationVMDetail(virtualMachine, this);
             if (!vmDetail.Verified)
             {
+                Logger.Error("{0}: Skipped: Verify Failed", virtualMachine.Name);
                 return "skipped-verifyfailed";
             }
 
             try { 
                 
-                VirtualMachineRelocateSpec vmRelocSpec = GetRelocationSpec(virtualMachine);
+                VirtualMachineRelocateSpec vmRelocSpec = GetRelocationSpec(vmDetail);
                 if (vmRelocSpec != null)
                 {
- 
-                        Trace.WriteLine("==========================================");
-                        Trace.WriteLine("Attempating to migrate " + virtualMachine.Name.ToUpper());
-                        Trace.WriteLine("Moving to host " + vmRelocSpec.Host.ToString());
-                        if (vmRelocSpec.DeviceChange.Count() > 0)
-                            Trace.WriteLine("Moving to network " + vmRelocSpec.DeviceChange[0].Device.DeviceInfo.Summary);
-                        Trace.WriteLine("Moving to datastore " + vmRelocSpec.Datastore.ToString());
-                        Trace.WriteLine("==========================================");
+                    Logger.Info("==========================================");
+                    Logger.Info("Migrating {0} to {1}{2}", virtualMachine.Name, vmDetail.DestinationClusterComputeResource?.Name, vmDetail.DestinationHostSystem?.Name);
+                    Logger.Info("Migrating {0} storage to {1}{2}", virtualMachine.Name, vmDetail.DestinationDatastore?.Name, vmDetail.DestinationStoragePod?.Name);
+                    if (vmRelocSpec.DeviceChange.Count() > 0)
+                        foreach (var deviceChange in vmRelocSpec.DeviceChange)
+                            Logger.Info("Migrating networking to {@0}", deviceChange);
+                    Logger.Info("==========================================");
 
-                        return ((VirtualMachine) GetViewByName<VirtualMachine>(virtualMachine.Name))
+                    return ((VirtualMachine) GetViewByName<VirtualMachine>(virtualMachine.Name))
                             .RelocateVM_Task(vmRelocSpec, VirtualMachineMovePriority.highPriority).ToString();
                 }
             }
-            catch (VimException e)
+            catch (Exception e)
             {
-                Trace.WriteLine("EXCEPTION");
-                Trace.WriteLine(e.Source, "EXCEPTION");
-                Trace.WriteLine(e.Message, "EXCEPTION");
-                Trace.WriteLine(e.StackTrace, "EXCEPTION");
+                Logger.Error("EXCEPTION: {0}", e.Message);
+                Logger.Error("EXCEPTION: {0}", e.StackTrace);
                 throw;
             }
 
-            Trace.WriteLine("MigrateVirtualMachine(): returning null");
+            Logger.Trace("return null {@value}", vmDetail);
             return null;
         }
 
-        private VirtualMachineRelocateSpec GetRelocationSpec(MigrationVM virtualMachine)
-        {
-            Trace.WriteLine(virtualMachine.Name, "Setting up RelocationSpec for VM");
-            Regex storagePodRegex = new Regex(@"group");
-
-            var targetVM = (VirtualMachine) GetViewByName<VirtualMachine>(virtualMachine.Name);
-            if (targetVM == null)
-            {
-                Trace.WriteLine(virtualMachine.Name, "GetRelocateionSpec(): VM NOT FOUND");
-                return null;
-            }
-            ManagedObjectReference targetDatastore = GetDatastoreMoRef(virtualMachine.DestinationStorage);
+        private VirtualMachineRelocateSpec GetRelocationSpec( MigrationVMDetail vmDetail)
+        {            
+            Logger.Info("{0}: Setting up RelocationSpec", vmDetail.SourceVirtualMachine.Name);
                         
             PlacementSpec placementSpec = new PlacementSpec();
-            placementSpec.Vm = targetVM.MoRef;
+            placementSpec.Vm = vmDetail.SourceVirtualMachine.MoRef;
             placementSpec.Priority = VirtualMachineMovePriority.highPriority;
             placementSpec.PlacementType = "relocate";
-            Match match = storagePodRegex.Match(targetDatastore.Value);
-            if(match.Success)
-                placementSpec.StoragePods = new[] { targetDatastore };
-            else
-                placementSpec.Datastores = new[] { targetDatastore };
+            placementSpec.RelocateSpec = new VirtualMachineRelocateSpec();
 
-            var targetHost = (HostSystem) GetViewByName<HostSystem>(virtualMachine.DestinationCompute);
-            ClusterComputeResource targetCluster;
-            if (targetHost != null)
+            if (vmDetail.DestinationIsComputeCluster)
             {
-                targetCluster = (ClusterComputeResource) GetViewByRef<ClusterComputeResource>(targetHost.Parent);
-                placementSpec.Hosts = new[] { targetHost.MoRef };
+                //placementSpec.Hosts = vmDetail.DestinationClusterComputeResource.Host;
+                placementSpec.RelocateSpec.Host = vmDetail.DestinationClusterComputeResource.RecommendHostsForVm(vmDetail.SourceVirtualMachine.MoRef, vmDetail.DestinationClusterComputeResource.ResourcePool).FirstOrDefault().Host;
+                Logger.Trace("{0}: Recomended Host {1}", vmDetail.SourceVirtualMachine.Name, placementSpec.RelocateSpec.Host.ToString());
             }
             else
             {
-                targetCluster = (ClusterComputeResource) GetViewByName<ClusterComputeResource>(virtualMachine.DestinationCompute);
-                if (targetCluster == null)
+                placementSpec.RelocateSpec.Host = vmDetail.DestinationHostSystem.MoRef;
+            }
+
+            var networkDeviceConfigSpecs = UpdateVMNetworkDevices(vmDetail.SourceVirtualMachine, placementSpec.RelocateSpec.Host);
+            foreach (var ndc in networkDeviceConfigSpecs)
+            {
+                Logger.Info("{0}: Network Device Config: {1}", vmDetail.SourceVirtualMachine.Name, ndc.Device.Backing);
+            }
+
+            placementSpec.RelocateSpec.DeviceChange = networkDeviceConfigSpecs.ToArray();
+            Logger.Trace("{value0}: placmentSpec: {@value1}", vmDetail.SourceVirtualMachine.Name, placementSpec);
+
+            if (vmDetail.DestinationStoragePod != null)
+            {
+                StoragePlacementSpec storagePlacementSpec = new StoragePlacementSpec
                 {
-                    return null;
-                }
-                placementSpec.Hosts = targetCluster.Host;
-            }
+                    Vm = vmDetail.SourceVirtualMachine.MoRef,
+                    Type = "relocate",
+                    Priority = VirtualMachineMovePriority.highPriority,
+                    PodSelectionSpec = new StorageDrsPodSelectionSpec
+                    {
+                        StoragePod = vmDetail.DestinationStoragePod.MoRef
+                    }
+                };
+                var storageRM = new StorageResourceManager(vClient, vClient.ServiceContent.StorageResourceManager);
+                var storageResult = storageRM.RecommendDatastores(storagePlacementSpec);
+                Logger.Trace("{value0}: storageResult: {@value1}", vmDetail.SourceVirtualMachine.Name, storageResult);
+                Logger.Trace("{0}: StoragePlacementResult: Setting placementSpec.RelocateSpec.Datastore to {@value1}", vmDetail.SourceVirtualMachine.Name, ((StoragePlacementAction)storageResult.Recommendations.FirstOrDefault().Action.FirstOrDefault()).Destination);
+                placementSpec.RelocateSpec.Datastore = ((StoragePlacementAction)storageResult.Recommendations.FirstOrDefault().Action.FirstOrDefault()).Destination;
 
-            var networkDeviceConfigSpecs = UpdateVMNetworkDevices(targetVM, placementSpec.Hosts);
-            placementSpec.RelocateSpec = new VirtualMachineRelocateSpec { DeviceChange = networkDeviceConfigSpecs.ToArray() };
+                //Logger.Trace("{0}: Setting placementSpec.StoragePods to {1}", vmDetail.SourceVirtualMachine.Name, vmDetail.DestinationStoragePod.MoRef);
+                //placementSpec.StoragePods = new[] { vmDetail.DestinationStoragePod.MoRef };
+            }
+            else
+            {
+                Logger.Trace("{0}: Setting placementSpec.RelocateSpec.Datastore to {1}", vmDetail.SourceVirtualMachine.Name, vmDetail.DestinationDatastore.MoRef);
+                placementSpec.RelocateSpec.Datastore = vmDetail.DestinationDatastore.MoRef;
+            }
 
             try
             {
-                PlacementResult placementResult = targetCluster.PlaceVm(placementSpec);
-                if (placementResult.DrsFault == null)
-                {
-                    var recommendedRelocSpec = (VirtualMachineRelocateSpec)((PlacementAction)placementResult.Recommendations[0].Action[0]).RelocateSpec;
-                    placementSpec.RelocateSpec.Host = recommendedRelocSpec.Host;
-                    placementSpec.RelocateSpec.Datastore = recommendedRelocSpec.Datastore;
-                    placementSpec.RelocateSpec.Pool = recommendedRelocSpec.Pool;
-                    placementSpec.RelocateSpec.Folder = recommendedRelocSpec.Folder;
-                    return placementSpec.RelocateSpec;
+                //PlacementResult placementResult = vmDetail.DestinationClusterComputeResource.PlaceVm(placementSpec);
+                //if (placementResult.DrsFault == null)
+                //{
+                //    var recommendedRelocSpec = (VirtualMachineRelocateSpec)((PlacementAction)placementResult.Recommendations[0].Action[0]).RelocateSpec;
+                //    Logger.Info("{value0}: recommendedRelocSpec: {@value1}", vmDetail.SourceVirtualMachine.Name, recommendedRelocSpec);
+                //    placementSpec.RelocateSpec.Host = recommendedRelocSpec.Host;
+                //    Logger.Info("{0}: Recomended Host {1}", vmDetail.SourceVirtualMachine.Name, recommendedRelocSpec.Host.ToString());
+                //    placementSpec.RelocateSpec.Datastore = recommendedRelocSpec.Datastore;
+                //    Logger.Info("{0}: Recomended Datastore {1}", vmDetail.SourceVirtualMachine.Name, recommendedRelocSpec.Datastore.ToString());
+                //    Logger.Trace("{value0}: Final RelocationSpec: {@value1}", vmDetail.SourceVirtualMachine.Name, placementSpec.RelocateSpec);
+                //    return placementSpec.RelocateSpec;
 
-                }
+                //}
+                //else
+                //{
+                //    Logger.Error("{0}: DRS FAULT: {1}", vmDetail.SourceVirtualMachine.Name, placementResult.DrsFault.Reason);
+                //    foreach (var faultsByVm in placementResult.DrsFault.FaultsByVm)
+                //        foreach (var fault in faultsByVm.Fault)
+                //            Logger.Error("{0}: FaultsByVm: {1}", vmDetail.SourceVirtualMachine.Name, fault.LocalizedMessage);
 
+                
+                return placementSpec.RelocateSpec;
 
-                Trace.WriteLine(placementResult.DrsFault.Reason, "DRS FAULT");
-                foreach (var faultsByVm in placementResult.DrsFault.FaultsByVm)
-                    foreach (var fault in faultsByVm.Fault)
-                        Trace.WriteLine(fault.LocalizedMessage, targetVM.Name + ": DRS FAULT");
+                //}
             }
-            catch(VimException)
+            catch(Exception e)
             {
+                Logger.Error("EXCEPTION: {0}", vmDetail.SourceVirtualMachine.Name);
+                Logger.Error("EXCEPTION: {0}", e.Message);
+                Logger.Error("EXCEPTION: {0}", e.StackTrace);
                 throw;
             }
-            
-
-
-
-            return null;
         }
-        private List<VirtualDeviceConfigSpec> UpdateVMNetworkDevices(VirtualMachine virtualMachine, ManagedObjectReference[] hosts)
+        private List<VirtualDeviceConfigSpec> UpdateVMNetworkDevices(VirtualMachine virtualMachine, ManagedObjectReference host)
         {            
             List<VirtualDeviceConfigSpec> nicConfigSpecs = new List<VirtualDeviceConfigSpec>();
 
@@ -203,7 +236,7 @@ namespace MToolVapiClient
             foreach(VirtualEthernetCard nic in nics)
             {
                 if (nic.Backing is VirtualEthernetCardNetworkBackingInfo)
-                    nic.Backing = GetNetworkByVlanId(nic, hosts);
+                    nic.Backing = GetNetworkByVlanId(nic, host);
 
                 if (nic.Backing == null)
                     continue;
@@ -219,8 +252,7 @@ namespace MToolVapiClient
                     Summary = ((VirtualEthernetCardNetworkBackingInfo)nic.Backing).DeviceName,
                     Label = nic.DeviceInfo.Label
                 };
-                
-                Trace.WriteLine(nic.DeviceInfo.Summary, virtualMachine.Name + " NIC Summary");
+                Logger.Info("{0}: NIC Summary: {1}", virtualMachine.Name, nic.DeviceInfo.Summary);
                 nicConfigSpecs.Add(spec);
             }
             return nicConfigSpecs;
@@ -246,12 +278,12 @@ namespace MToolVapiClient
             }
             return null;
         }
-        private VirtualDeviceBackingInfo GetNetworkByVlanId(VirtualEthernetCard nic, ManagedObjectReference[] hosts)
+        private VirtualDeviceBackingInfo GetNetworkByVlanId(VirtualEthernetCard nic, ManagedObjectReference host)
         {
             // see if we can find another virtual network on the same vlan with a different name. 
             var networkMoRef = ((VirtualEthernetCardNetworkBackingInfo)nic.Backing).Network;
             var virtualNetwork = (Network)vClient.GetView(networkMoRef, null);
-            HostPortGroup portgroup = ((HostSystem)GetViewByRef<HostSystem>(hosts.FirstOrDefault()))
+            HostPortGroup portgroup = ((HostSystem)GetViewByRef<HostSystem>(host))
                                                     .Config.Network.Portgroup.FirstOrDefault(x => x.Spec.Name == virtualNetwork.Name);
 
             if (portgroup == null)
@@ -260,7 +292,7 @@ namespace MToolVapiClient
                 int currentPortgroupVlanId = ((HostSystem)GetViewByRef<HostSystem>(((Network)vClient.GetView(networkMoRef, null)).Host.FirstOrDefault()))
                                         .Config.Network.Portgroup.FirstOrDefault(x => x.Spec.Name == virtualNetwork.Name)
                                         .Spec.VlanId;
-                HostPortGroup portgroupByVlan = ((HostSystem)GetViewByRef<HostSystem>(hosts.FirstOrDefault()))
+                HostPortGroup portgroupByVlan = ((HostSystem)GetViewByRef<HostSystem>(host))
                                         .Config.Network.Portgroup.FirstOrDefault(x => x.Spec.VlanId == currentPortgroupVlanId);
 
                 if (portgroupByVlan != null)

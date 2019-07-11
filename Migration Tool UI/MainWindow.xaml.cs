@@ -85,7 +85,7 @@ namespace Migration_Tool_UI
                     // polish this! => add error message to MigrationTask for inclusion in datagrid/logs/output?
                     Task.Run(() =>
                     {
-                        MessageBoxResult exceptionBox = MessageBox.Show(e.Source + " Says:\n\n" + e.Message, "Problem Migrating " + migrationVM.Name.ToUpper(), MessageBoxButton.OK);
+                        MessageBoxResult exceptionBox = MessageBox.Show(e.Source + " Says:\n\n" + e.Message + "\n\n" + e.StackTrace, "Problem Migrating " + migrationVM.Name.ToUpper(), MessageBoxButton.OK);
                     });
                     return new MigrationTask
                     {
