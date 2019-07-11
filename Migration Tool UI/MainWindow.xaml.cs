@@ -18,6 +18,7 @@ using System.Windows.Shapes;
 using System.Windows.Threading;
 using System.Diagnostics;
 using System.ComponentModel;
+using NLog;
 
 using MToolVapiClient;
 
@@ -33,6 +34,7 @@ namespace Migration_Tool_UI
 
     public partial class MainWindow : Window
     {
+        private static readonly NLog.Logger Logger = NLog.LogManager.GetCurrentClassLogger();
         private string _MigrationCSVFile = String.Empty;
         private readonly VAPIConnection vapiConnection;        
         private readonly DispatcherTimer _Timer;
@@ -42,6 +44,7 @@ namespace Migration_Tool_UI
         public MainWindow()
         {
             InitializeComponent();
+
             MigrationGridList = (GridList)this.Resources["MigrationGridList"];
             vapiConnection = new VAPIConnection();
             _Timer = new DispatcherTimer

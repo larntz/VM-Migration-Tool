@@ -112,6 +112,7 @@ namespace MToolVapiClient
                     {
                         Logger.Trace("Comparing StoragePod {0} != {1}", SourceStoragePod.Name, DestinationStoragePod.Name);
                         datastoreVerified = true;
+                        MigrateStorage = true;
                     }
                 }
                 else
@@ -121,6 +122,7 @@ namespace MToolVapiClient
                         {
                             Logger.Trace("Compating Datastore {0} != {1}", datastore.Name, DestinationDatastore.Name);
                             datastoreVerified = true;
+                            MigrateStorage = true;
                         }
                 }
 
@@ -131,18 +133,22 @@ namespace MToolVapiClient
                     {
                         Logger.Trace("Comparing Clusters {0} != {1}", SourceClusterComputeResource.Name, DestinationClusterComputeResource.Name);
                         computeVerfied = true;
+                        MigrateCompute = true;
                     }
                 }
                 else if (SourceHostSystem.Name != DestinationHostSystem.Name)
                 {
                     Logger.Trace("Comparing Hosts {0} != {1}", SourceHostSystem.Name, DestinationHostSystem.Name);
                     computeVerfied = true;
+                    MigrateCompute = true;
                 }
 
                 return (datastoreVerified || computeVerfied);
             }
         }
         public bool DestinationIsComputeCluster = true;
+        public bool MigrateCompute = false;
+        public bool MigrateStorage = false;
         public VirtualMachine SourceVirtualMachine { get; set; }
         public ClusterComputeResource SourceClusterComputeResource { get; set; }
         public ClusterComputeResource DestinationClusterComputeResource { get; set; }

@@ -139,62 +139,71 @@ namespace MToolVapiClient
         private VirtualMachineRelocateSpec GetRelocationSpec( MigrationVMDetail vmDetail)
         {            
             Logger.Info("{0}: Setting up RelocationSpec", vmDetail.SourceVirtualMachine.Name);
-                        
-            PlacementSpec placementSpec = new PlacementSpec();
-            placementSpec.Vm = vmDetail.SourceVirtualMachine.MoRef;
-            placementSpec.Priority = VirtualMachineMovePriority.highPriority;
-            placementSpec.PlacementType = "relocate";
-            placementSpec.RelocateSpec = new VirtualMachineRelocateSpec();
-
-            if (vmDetail.DestinationIsComputeCluster)
-            {
-                //placementSpec.Hosts = vmDetail.DestinationClusterComputeResource.Host;
-                placementSpec.RelocateSpec.Host = vmDetail.DestinationClusterComputeResource.RecommendHostsForVm(vmDetail.SourceVirtualMachine.MoRef, vmDetail.DestinationClusterComputeResource.ResourcePool).FirstOrDefault().Host;
-                Logger.Trace("{0}: Recomended Host {1}", vmDetail.SourceVirtualMachine.Name, placementSpec.RelocateSpec.Host.ToString());
-            }
-            else
-            {
-                placementSpec.RelocateSpec.Host = vmDetail.DestinationHostSystem.MoRef;
-            }
-
-            var networkDeviceConfigSpecs = UpdateVMNetworkDevices(vmDetail.SourceVirtualMachine, placementSpec.RelocateSpec.Host);
-            foreach (var ndc in networkDeviceConfigSpecs)
-            {
-                Logger.Info("{0}: Network Device Config: {1}", vmDetail.SourceVirtualMachine.Name, ndc.Device.Backing);
-            }
-
-            placementSpec.RelocateSpec.DeviceChange = networkDeviceConfigSpecs.ToArray();
-            Logger.Trace("{value0}: placmentSpec: {@value1}", vmDetail.SourceVirtualMachine.Name, placementSpec);
-
-            if (vmDetail.DestinationStoragePod != null)
-            {
-                StoragePlacementSpec storagePlacementSpec = new StoragePlacementSpec
-                {
-                    Vm = vmDetail.SourceVirtualMachine.MoRef,
-                    Type = "relocate",
-                    Priority = VirtualMachineMovePriority.highPriority,
-                    PodSelectionSpec = new StorageDrsPodSelectionSpec
-                    {
-                        StoragePod = vmDetail.DestinationStoragePod.MoRef
-                    }
-                };
-                var storageRM = new StorageResourceManager(vClient, vClient.ServiceContent.StorageResourceManager);
-                var storageResult = storageRM.RecommendDatastores(storagePlacementSpec);
-                Logger.Trace("{value0}: storageResult: {@value1}", vmDetail.SourceVirtualMachine.Name, storageResult);
-                Logger.Trace("{0}: StoragePlacementResult: Setting placementSpec.RelocateSpec.Datastore to {@value1}", vmDetail.SourceVirtualMachine.Name, ((StoragePlacementAction)storageResult.Recommendations.FirstOrDefault().Action.FirstOrDefault()).Destination);
-                placementSpec.RelocateSpec.Datastore = ((StoragePlacementAction)storageResult.Recommendations.FirstOrDefault().Action.FirstOrDefault()).Destination;
-
-                //Logger.Trace("{0}: Setting placementSpec.StoragePods to {1}", vmDetail.SourceVirtualMachine.Name, vmDetail.DestinationStoragePod.MoRef);
-                //placementSpec.StoragePods = new[] { vmDetail.DestinationStoragePod.MoRef };
-            }
-            else
-            {
-                Logger.Trace("{0}: Setting placementSpec.RelocateSpec.Datastore to {1}", vmDetail.SourceVirtualMachine.Name, vmDetail.DestinationDatastore.MoRef);
-                placementSpec.RelocateSpec.Datastore = vmDetail.DestinationDatastore.MoRef;
-            }
 
             try
             {
+                PlacementSpec placementSpec = new PlacementSpec();
+                placementSpec.Vm = vmDetail.SourceVirtualMachine.MoRef;
+                placementSpec.Priority = VirtualMachineMovePriority.highPriority;
+                placementSpec.PlacementType = "relocate";
+                placementSpec.RelocateSpec = new VirtualMachineRelocateSpec();
+
+                if (vmDetail.MigrateCompute)
+                {
+                    if (vmDetail.DestinationIsComputeCluster)
+                    {
+                        //placementSpec.Hosts = vmDetail.DestinationClusterComputeResource.Host;
+                        vmDetail.DestinationHostSystem = (HostSystem)GetViewByRef<HostSystem>(vmDetail.DestinationClusterComputeResource.RecommendHostsForVm(vmDetail.SourceVirtualMachine.MoRef, vmDetail.DestinationClusterComputeResource.ResourcePool).FirstOrDefault().Host);
+                        placementSpec.RelocateSpec.Host = vmDetail.DestinationHostSystem.MoRef;
+                        placementSpec.RelocateSpec.Pool = vmDetail.DestinationClusterComputeResource.ResourcePool;
+                        Logger.Trace("{0}: Recomended Host {1}", vmDetail.SourceVirtualMachine.Name, placementSpec.RelocateSpec.Host.ToString());
+                    }
+                    else
+                    {
+                        placementSpec.RelocateSpec.Host = vmDetail.DestinationHostSystem.MoRef;
+                        placementSpec.RelocateSpec.Pool = vmDetail.DestinationClusterComputeResource.ResourcePool;
+                    }
+
+                    var networkDeviceConfigSpecs = UpdateVMNetworkDevices(vmDetail.SourceVirtualMachine, placementSpec.RelocateSpec.Host);
+                    foreach (var ndc in networkDeviceConfigSpecs)
+                    {
+                        Logger.Info("{0}: Network Device Config: {1}", vmDetail.SourceVirtualMachine.Name, ndc.Device.Backing);
+                    }
+
+                    placementSpec.RelocateSpec.DeviceChange = networkDeviceConfigSpecs.ToArray();
+                    Logger.Trace("{value0}: placmentSpec: {@value1}", vmDetail.SourceVirtualMachine.Name, placementSpec);
+                }
+
+                if (vmDetail.MigrateStorage)
+                {
+                    if (vmDetail.DestinationStoragePod != null)
+                    {
+                        StoragePlacementSpec storagePlacementSpec = new StoragePlacementSpec
+                        {
+                            Vm = vmDetail.SourceVirtualMachine.MoRef,
+                            Type = "relocate",
+                            Priority = VirtualMachineMovePriority.highPriority,
+                            PodSelectionSpec = new StorageDrsPodSelectionSpec
+                            {
+                                StoragePod = vmDetail.DestinationStoragePod.MoRef
+                            }
+                        };
+                        var storageRM = new StorageResourceManager(vClient, vClient.ServiceContent.StorageResourceManager);
+                        var storageResult = storageRM.RecommendDatastores(storagePlacementSpec);
+                        Logger.Trace("{value0}: storageResult: {@value1}", vmDetail.SourceVirtualMachine.Name, storageResult);
+                        Logger.Trace("{0}: StoragePlacementResult: Setting placementSpec.RelocateSpec.Datastore to {@value1}", vmDetail.SourceVirtualMachine.Name, ((StoragePlacementAction)storageResult.Recommendations.FirstOrDefault().Action.FirstOrDefault()).Destination);
+                        placementSpec.RelocateSpec.Datastore = ((StoragePlacementAction)storageResult.Recommendations.FirstOrDefault().Action.FirstOrDefault()).Destination;
+
+                        //Logger.Trace("{0}: Setting placementSpec.StoragePods to {1}", vmDetail.SourceVirtualMachine.Name, vmDetail.DestinationStoragePod.MoRef);
+                        //placementSpec.StoragePods = new[] { vmDetail.DestinationStoragePod.MoRef };
+                    }
+                    else
+                    {
+                        Logger.Trace("{0}: Setting placementSpec.RelocateSpec.Datastore to {1}", vmDetail.SourceVirtualMachine.Name, vmDetail.DestinationDatastore.MoRef);
+                        placementSpec.RelocateSpec.Datastore = vmDetail.DestinationDatastore.MoRef;
+                    }
+                }
+
                 //PlacementResult placementResult = vmDetail.DestinationClusterComputeResource.PlaceVm(placementSpec);
                 //if (placementResult.DrsFault == null)
                 //{
@@ -218,7 +227,7 @@ namespace MToolVapiClient
                 
                 return placementSpec.RelocateSpec;
 
-                //}
+                    //}
             }
             catch(Exception e)
             {
