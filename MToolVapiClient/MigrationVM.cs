@@ -49,11 +49,12 @@ namespace MToolVapiClient
                 {
                     SourceClusterComputeResource = (ClusterComputeResource)cluster;
                 }
-                else
+                else if (cluster is ComputeResource)
                 {
                     SourceComputeResource = (ComputeResource)VClient.GetViewByRef<ComputeResource>(SourceHostSystem.Parent);
                 }
                 Logger.Info("{0}: Source Cluster {1} :: {2}", SourceVirtualMachine.Name, SourceClusterComputeResource?.Name, SourceClusterComputeResource?.MoRef);
+
                 SourceDatastore = new List<Datastore>();
                 foreach (var datastore in SourceVirtualMachine.Datastore)
                 {                    

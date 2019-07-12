@@ -64,9 +64,9 @@ namespace Migration_Tool_UI
 
             MigrationGridList = (GridList)this.Resources["MigrationGridList"];
             vapiConnection = new VAPIConnection();
-            _Timer = new DispatcherTimer
+            _Timer = new DispatcherTimer(DispatcherPriority.Background)
             {
-                Interval = TimeSpan.FromSeconds(2)
+                Interval = TimeSpan.FromSeconds(3)
             };
             _Timer.Tick += (s, e) =>
             {
@@ -158,7 +158,7 @@ namespace Migration_Tool_UI
                     if (thisTask.State != "running")
                         running = false;
 
-                    Thread.Sleep(3000);                   
+                    Thread.Sleep(900);                   
                     
                 } while (running);
 

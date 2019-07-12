@@ -39,10 +39,12 @@
             <!--1-->
             <RowDefinition Height="auto"/>
             <!--2-->
-            <RowDefinition Height="*"/>
+            <RowDefinition Height="auto"/>
             <!--3-->
-            <RowDefinition Height="20"/>
+            <RowDefinition Height="*"/>
             <!--4-->
+            <RowDefinition Height="20"/>
+            <!--5-->
         </Grid.RowDefinitions>
 
         <TextBlock Grid.Column="1" Grid.ColumnSpan="3" Grid.Row="1" FontSize="21" Margin="0,0,0,0"
@@ -56,10 +58,11 @@
         <TextBlock x:Name="txtSelectedFile" Grid.Column="1" Grid.ColumnSpan="2" Grid.Row="2" Text="No File Selected" Margin="0,20,0,0" />
 
         <DataGrid x:Name="dgGridList" ItemsSource="{Binding Source={StaticResource cvsMigrationGridList}}"
-                  Grid.Column="1" Grid.ColumnSpan="3" Grid.Row="3"  Margin="0,20,0,0" 
+                  Grid.Column="1" Grid.ColumnSpan="3" Grid.Row="4"  Margin="0,20,0,0" 
                   ColumnWidth="Auto" MinColumnWidth="75" Background="#04060f"
                   AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False" 
-                  RowHeaderWidth="0" VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled" >
+                  RowHeaderWidth="0" VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled" 
+                  VirtualizingPanel.IsVirtualizingWhenGrouping="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
 
             <DataGrid.Columns>
                 <DataGridTemplateColumn Header="Virtual Machine">
@@ -83,17 +86,17 @@
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
-                <DataGridTemplateColumn Header="Migration Time" >
+                <DataGridTemplateColumn Header="Migration Time">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <Label Content="{Binding MigrationDuration}" />
+                            <Label HorizontalAlignment="Center" Content="{Binding MigrationDuration}" />
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
                 <DataGridTemplateColumn Header="Status" >
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <Label Content="{Binding State}" />
+                            <Label HorizontalAlignment="Center" Content="{Binding State}" />
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                     <!--<DataGridTemplateColumn.CellStyle>
