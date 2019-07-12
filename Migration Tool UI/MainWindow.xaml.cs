@@ -34,7 +34,7 @@ namespace Migration_Tool_UI
 
     public partial class MainWindow : Window
     {
-        private static readonly NLog.Logger Logger = NLog.LogManager.GetCurrentClassLogger();
+        private static readonly NLog.Logger MigrationLogger = NLog.LogManager.GetCurrentClassLogger();
         private string _MigrationCSVFile = String.Empty;
         private readonly VAPIConnection vapiConnection;        
         private readonly DispatcherTimer _Timer;
@@ -44,6 +44,23 @@ namespace Migration_Tool_UI
         public MainWindow()
         {
             InitializeComponent();
+
+            var config = new NLog.Config.LoggingConfiguration();
+
+            // Targets where to log to: File and Console
+            string logFilePath = "migration-" + DateTime.Now.ToFileTime().ToString() + ".log";
+            var logfile = new NLog.Targets.FileTarget("logfile") { FileName = logFilePath, Layout = "${longdate} | ${level:uppercase=true:padding=-5:fixedLength=true} | ${logger:padding=-35:fixedLength=true} | ${message}" };
+            var logconsole = new NLog.Targets.ConsoleTarget("logconsole") { Layout = "${longdate} | ${level:uppercase=true:padding=-5:fixedLength=true} | ${logger:padding=-35:fixedLength=true} | ${message}" };
+
+            // Rules for mapping loggers to targets            
+            config.AddRule(LogLevel.Trace, LogLevel.Fatal, logconsole);
+            config.AddRule(LogLevel.Debug, LogLevel.Fatal, logfile);
+
+            // Apply config           
+            NLog.LogManager.Configuration = config;
+
+            MigrationLogger.Info("Migration Logging Initialized");
+
 
             MigrationGridList = (GridList)this.Resources["MigrationGridList"];
             vapiConnection = new VAPIConnection();
@@ -103,7 +120,7 @@ namespace Migration_Tool_UI
                 
                 if (migrationVM.MoRef == null)
                 {
-                    Trace.WriteLine(migrationVM.Name, "RunMigration(): MigrateVirtualMachine returned null MoRef.");
+                    MigrationLogger.Error("{0}: MigrateVirtualMachine() returned null", migrationVM.Name);
                     // task failed to start. Return what we know.
                     return new MigrationTask
                     {
@@ -117,7 +134,7 @@ namespace Migration_Tool_UI
                 }
                 else if(migrationVM.MoRef == "skipped-verifyfailed")
                 {
-                    Trace.WriteLine(migrationVM.Name, "RunMigration(): Skipped VM.");
+                    MigrationLogger.Info("{0}: Skipping VM", migrationVM.Name);
                     // task failed to start. Return what we know.
                     return new MigrationTask
                     {
@@ -141,7 +158,7 @@ namespace Migration_Tool_UI
                     if (thisTask.State != "running")
                         running = false;
 
-                    Thread.Sleep(1000);                   
+                    Thread.Sleep(3000);                   
                     
                 } while (running);
 
@@ -153,27 +170,23 @@ namespace Migration_Tool_UI
         private void UpdateMigrationGridListItem(MigrationTask migrationTask)
         {
             // If (MoRef == null) something went wrong. Try update this item by name and exit the function.
+            var item = new GridRow();
             if (migrationTask.MoRef == null)
-            {   
-                var itemName = MigrationGridList.FirstOrDefault(x => x.Name == migrationTask.EntityName);
-                itemName.State = migrationTask.State;
-                itemName.StateReason = migrationTask.StateReason;
-                itemName.Progress = migrationTask.Progress;
-                itemName.Start = migrationTask.Start;
-                itemName.Finish = DateTime.Now;
-                return;
+            {
+                item = MigrationGridList.FirstOrDefault(x => x.Name == migrationTask.EntityName);
+            }
+            else
+            {
+                item = MigrationGridList.FirstOrDefault(x => x.MoRef == migrationTask.MoRef);
             }
 
-            var item = MigrationGridList.FirstOrDefault(x => x.MoRef == migrationTask.MoRef);
-            if (item != null)
-            {
-                if (migrationTask.State != null)
-                    item.State = migrationTask.State;
-                item.StateReason = migrationTask.StateReason;
-                item.Progress = migrationTask.Progress;
-                item.Start = migrationTask.Start;
-                item.Finish = migrationTask.Finish;
-            }
+            if (migrationTask.State != null)
+                item.State = migrationTask.State;
+            item.StateReason = migrationTask.StateReason;
+            item.Progress = migrationTask.Progress;
+            item.Start = migrationTask.Start;
+            item.Finish = migrationTask.Finish;
+            MigrationLogger.Info("{@value0}", item);
 
             SortGridCollection();
         }
@@ -187,14 +200,14 @@ namespace Migration_Tool_UI
         {
             bool needIndexes = true;
             sbyte nameIndex = -1;
-            sbyte hostIndex = -1;
+            sbyte computeIndex = -1;
             sbyte datastoreIndex = -1;
 
             MigrationGridList.Clear();
 
             if (!File.Exists(_MigrationCSVFile))
             {
-                Trace.WriteLine("File {} does not exist", _MigrationCSVFile);
+                MigrationLogger.Error("{0}: File not found.", _MigrationCSVFile);
                 return;
             }
 
@@ -211,24 +224,22 @@ namespace Migration_Tool_UI
                         if (col.TrimStart('"').TrimEnd('"').ToUpper() == "DESTINATIONSTORAGE")
                             datastoreIndex = (sbyte)Array.IndexOf(columns, col);
                         if (col.TrimStart('"').TrimEnd('"').ToUpper() == "DESTINATIONCOMPUTE")
-                            hostIndex = (sbyte)Array.IndexOf(columns, col);
+                            computeIndex = (sbyte)Array.IndexOf(columns, col);
                     }
-                    if (nameIndex != -1 && hostIndex != -1 && datastoreIndex != -1)
+                    if (nameIndex != -1 && computeIndex != -1 && datastoreIndex != -1)
                         needIndexes = false;
-                    //Trace.WriteLine("Name index = {0}", nameIndex.ToString());
-                    //Trace.WriteLine("Host index = {0}", hostIndex.ToString());
-                    //Trace.WriteLine("Datastore index = {0}", datastoreIndex.ToString());
+                    MigrationLogger.Trace("Reading CSV File: Name index = {0}; DestinationCompute index = {1}; DestinationStorage index = {2}", nameIndex, computeIndex, datastoreIndex);
                 }
                 else
                 {
                     GridRow vm = new GridRow();
                     vm.Name = columns[nameIndex].TrimStart('"').TrimEnd('"');
                     vm.DestinationStorage = columns[datastoreIndex].TrimStart('"').TrimEnd('"');
-                    vm.DestinationCompute = columns[hostIndex].TrimStart('"').TrimEnd('"');
+                    vm.DestinationCompute = columns[computeIndex].TrimStart('"').TrimEnd('"');
                     vm.State = "waiting";
                     vm.Progress = 0;
                     MigrationGridList.Add(vm);
-                    Trace.WriteLine("migrationList Count", MigrationGridList.Count.ToString());
+                    MigrationLogger.Trace("{0}: items in migrationList", MigrationGridList.Count);
                 }
 
                 btnStartMigration.IsEnabled = true;

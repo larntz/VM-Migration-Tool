@@ -53,6 +53,9 @@ namespace MToolVapiClient
         public EntityViewBase GetViewByName<T>(string name)
         {
             NameValueCollection filter = new NameValueCollection();
+            
+            // make sure to capture the exact name only!
+            name = "^" + name + "$";
             filter.Add("Name", name);
             return vClient.FindEntityView(typeof(T), null, filter, null);
         }

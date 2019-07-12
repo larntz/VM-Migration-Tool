@@ -43,8 +43,17 @@ namespace MToolVapiClient
                 Logger.Info("{0}: Source VM {0} :: {1}", SourceVirtualMachine.Name, SourceVirtualMachine.MoRef);
                 SourceHostSystem = (HostSystem)VClient.GetViewByRef<HostSystem>(SourceVirtualMachine.Runtime.Host);
                 Logger.Info("{0}: Source Host {1} :: {2}", SourceVirtualMachine.Name, SourceHostSystem.Name, SourceHostSystem.MoRef);
-                SourceClusterComputeResource = (ClusterComputeResource)VClient.GetViewByRef<ClusterComputeResource>(SourceHostSystem.Parent);
-                Logger.Info("{0}: Source Cluster {1} :: {2}", SourceVirtualMachine.Name, SourceClusterComputeResource.Name, SourceClusterComputeResource.MoRef);
+                
+                var cluster = VClient.GetViewByRef<ClusterComputeResource>(SourceHostSystem.Parent);
+                if (cluster is ClusterComputeResource)
+                {
+                    SourceClusterComputeResource = (ClusterComputeResource)cluster;
+                }
+                else
+                {
+                    SourceComputeResource = (ComputeResource)VClient.GetViewByRef<ComputeResource>(SourceHostSystem.Parent);
+                }
+                Logger.Info("{0}: Source Cluster {1} :: {2}", SourceVirtualMachine.Name, SourceClusterComputeResource?.Name, SourceClusterComputeResource?.MoRef);
                 SourceDatastore = new List<Datastore>();
                 foreach (var datastore in SourceVirtualMachine.Datastore)
                 {                    
@@ -52,7 +61,7 @@ namespace MToolVapiClient
                     Logger.Info("{0}: Source Datastore {1} :: {2}", SourceVirtualMachine.Name, datastoreView.Name, datastoreView.MoRef);
                     SourceDatastore.Add(datastoreView);
                     var datastoreParent = VClient.GetViewByRef<StoragePod>(datastoreView.Parent);
-                    if (datastoreParent != null)
+                    if (datastoreParent is StoragePod)
                     {
                         SourceStoragePod = (StoragePod)datastoreParent;
                         Logger.Info("{0}: Source StoragePod {1} :: {2}", SourceVirtualMachine.Name, SourceStoragePod.Name, SourceStoragePod.MoRef);
@@ -105,6 +114,11 @@ namespace MToolVapiClient
         {
             get
             {
+                if(SourceVirtualMachine.DisabledMethod.Contains("RelocateVM_Task"))
+                {
+                    return false;
+                }
+
                 bool datastoreVerified = false;
                 if (DestinationDatastore == null)
                 {
@@ -151,6 +165,7 @@ namespace MToolVapiClient
         public bool MigrateStorage = false;
         public VirtualMachine SourceVirtualMachine { get; set; }
         public ClusterComputeResource SourceClusterComputeResource { get; set; }
+        public ComputeResource SourceComputeResource { get; set; }
         public ClusterComputeResource DestinationClusterComputeResource { get; set; }
         public HostSystem SourceHostSystem { get; set; }
         public HostSystem DestinationHostSystem { get; set; }
