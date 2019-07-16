@@ -18,9 +18,6 @@
             <local:GridList x:Key="MigrationGridList" />
             <CollectionViewSource x:Name="cvsMigrationGridList" x:Key="cvsMigrationGridList" Source="{StaticResource MigrationGridList}"
                               IsLiveGroupingRequested="False">
-                <!--<CollectionViewSource.GroupDescriptions>
-                    <PropertyGroupDescription PropertyName="StateId" />
-                </CollectionViewSource.GroupDescriptions>-->
             </CollectionViewSource>
             
             <Style TargetType="Button" x:Key="ImageButton">
@@ -83,20 +80,30 @@
             <!--7-->
         </Grid.RowDefinitions>
 
-        <Button x:Name="btnLogin" Grid.Column="5" Grid.Row="1" Height="30" Width="25" HorizontalAlignment="Right" Margin=" 20,0,40,20"
+        <!--<Button x:Name="btnLogin" Grid.Column="5" Grid.Row="1" Height="40" Width="35" HorizontalAlignment="Right" 
                 BorderThickness="0" Style="{StaticResource ImageButton}">
-            <Image Source="{StaticResource login_lineDrawingImage}" />
-        </Button>
-        <Button x:Name="btnSettings" Grid.Column="5" Grid.Row="1" Height="30" Width="25" HorizontalAlignment="Right" Margin=" 20,0,0,20"
-                BorderThickness="0" Background="White"  Style="{StaticResource ImageButton}">
-            <Image Source="{StaticResource settings_lineDrawingImage}" />
-        </Button>
-
+            <Image>
+                <Image.Style>
+                    <Style TargetType="Image">
+                        <Setter Property="Source"  Value="{StaticResource login_lineDrawingImage}" />
+                        <Style.Triggers>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Source" Value="{StaticResource login_solidDrawingImage}" />
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Image.Style>
+            </Image>
+        </Button>-->
+        
         <TextBlock Grid.Column="1" Grid.ColumnSpan="4" Grid.Row="1" FontSize="21" Margin="0,0,0,20" VerticalAlignment="Center"
-                   x:Name="txtMigrationStatus"  Text="Preparing Migration" />
+                   x:Name="txtMigrationStatus"  Text="Prepare Migration" />
 
         <Grid Grid.Column="1" Grid.ColumnSpan="5" Grid.Row="3">
-            <Button x:Name="btnSelectFile" Grid.Column="1" HorizontalAlignment="Left" Grid.Row="3" Height="30" Width="25"
+            <Button x:Name="btnSelectFile" Grid.Column="1" HorizontalAlignment="Left" Grid.Row="3" Height="40" Width="35" 
                 Click="SelectFile_Button_Click" BorderThickness="0" Background="White" VerticalAlignment="Center"  Style="{StaticResource ImageButton}" >
                 <Image>
                     <Image.Style>
@@ -116,9 +123,9 @@
             </Button>
 
             <TextBlock x:Name="txtSelectedFile" Grid.Column="2" Grid.ColumnSpan="2" Grid.Row="3" 
-                       Margin="30,0,0,0" Text="Load Migration File" VerticalAlignment="Center"/>
+                        Margin="50,0,0,0" Text="Load Migration File" VerticalAlignment="Center"/>
         </Grid>
-        <Button x:Name="btnStartMigration" Grid.Column="1" Grid.ColumnSpan="2" HorizontalAlignment="Right" VerticalAlignment="Bottom" Grid.Row="4" Height="30"  Width="150" Margin="0,20,0,0" 
+        <Button x:Name="btnStartMigration" Grid.Column="4" Grid.ColumnSpan="2" HorizontalAlignment="Right" VerticalAlignment="Center" Grid.Row="3" Height="30"  Width="150" 
                 IsEnabled="False" Content="Start Migration" Click="StartMigration_Button_Click" />
 
         <TextBox Grid.Row="4" Grid.Column="3" Grid.ColumnSpan="3" Name="tbStatus" IsReadOnly="True" IsManipulationEnabled="False" Margin="0,20,0,0"
@@ -172,11 +179,6 @@
                             <Label HorizontalAlignment="Center" Content="{Binding State}" />
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
-                    <!--<DataGridTemplateColumn.CellStyle>
-                        <Style TargetType="DataGridCell">
-                            <Setter Property="ToolTip" Value="{Binding StateReason}" />
-                        </Style>
-                    </DataGridTemplateColumn.CellStyle>-->
                 </DataGridTemplateColumn>
                 <DataGridTemplateColumn Header="Progress" Width="*">
                     <DataGridTemplateColumn.CellTemplate>
@@ -213,74 +215,6 @@
                     </Style.Triggers>
                 </Style>
             </DataGrid.CellStyle>
-            <!--<DataGrid.GroupStyle>
-                <GroupStyle>
-                    <GroupStyle.ContainerStyle>
-                        <Style TargetType="{x:Type GroupItem}">
-                            <Setter Property="Template">
-                                <Setter.Value>
-                                    <ControlTemplate TargetType="{x:Type GroupItem}">
-                                        <StackPanel>
-                                        <TextBlock>
-                                                <TextBlock.Style>
-                                                    <Style TargetType="TextBlock">
-                                                        <Setter Property="Padding" Value="10,5,0,5"/>
-                                                        <Style.Triggers>
-                                                            --><!-- running --><!--
-                                                            <DataTrigger Binding="{Binding Name}" Value="0"> 
-                                                                <Setter Property="Background" Value="#03353e" />
-                                                                <Setter Property="Foreground" Value="#a79c93" />
-                                                                <Setter Property="FontWeight" Value="Bold" />
-                                                            </DataTrigger>
-                                                            --><!-- waiting --><!--
-                                                            <DataTrigger Binding="{Binding Name}" Value="1"> 
-                                                                <Setter Property="Background" Value="#a79c93" />
-                                                                <Setter Property="Foreground" Value="#04060f" />
-                                                                <Setter Property="FontWeight" Value="Bold" />
-                                                            </DataTrigger>
-                                                            --><!-- error --><!--
-                                                            <DataTrigger Binding="{Binding Name}" Value="2">
-                                                                <Setter Property="Background" Value="#c1403d"/>
-                                                                <Setter Property="Foreground" Value="#04060f"/>
-                                                                <Setter Property="FontWeight" Value="Bold" />
-                                                            </DataTrigger>
-                                                            --><!-- success --><!--
-                                                            <DataTrigger Binding="{Binding Name}" Value="3">
-                                                                <Setter Property="Background" Value="#6a8a82" />
-                                                                <Setter Property="Foreground" Value="#04060f" />
-                                                                <Setter Property="FontWeight" Value="Bold" />
-                                                            </DataTrigger>
-                                                            --><!-- skipped --><!--
-                                                            <DataTrigger Binding="{Binding Name}" Value="4">
-                                                                <Setter Property="Background" Value="Black"/>
-                                                                <Setter Property="Foreground" Value="#a79c93"/>
-                                                                <Setter Property="FontWeight" Value="Bold" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </TextBlock.Style>
-                                            <TextBlock.Text>
-                                                <MultiBinding StringFormat="{}{0} [{1}/{2}]">
-                                                    <Binding Path="Name" Converter="{StaticResource StateIdConverter}"/>
-                                                    <Binding Path="ItemCount"/>
-                                                    <Binding Source="{StaticResource cvsMigrationGridList}" Path="Count"/>
-                                                </MultiBinding>
-                                            </TextBlock.Text>
-                                        </TextBlock>
-                                        <ItemsPresenter />
-                                        </StackPanel>
-                                    </ControlTemplate>
-                                </Setter.Value>
-                            </Setter>
-                        </Style>
-                    </GroupStyle.ContainerStyle>
-                    <GroupStyle.Panel>
-                        <ItemsPanelTemplate>
-                            <DataGridRowsPresenter/>
-                        </ItemsPanelTemplate>
-                    </GroupStyle.Panel>
-                </GroupStyle>
-            </DataGrid.GroupStyle>-->
         </DataGrid>
 
     </Grid>

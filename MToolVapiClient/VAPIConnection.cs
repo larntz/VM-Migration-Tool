@@ -19,7 +19,7 @@ namespace MToolVapiClient
         private readonly VimClient vClient = new VimClientImpl();
 
         public readonly int MAX_MIGRATIONS = 2;
-        public VAPIConnection()
+        public VAPIConnection(string server, string user, string password)
         {
             var config = new NLog.Config.LoggingConfiguration();
 
@@ -37,19 +37,24 @@ namespace MToolVapiClient
             Logger.Info("Logging Initialized");
             try
             {
-                var serverInfo = File.ReadAllLines("../../../Assets/server.txt");
                 vClient.IgnoreServerCertificateErrors = true;
-                Logger.Info("Connecting to server {0}", serverInfo[0]);
-                vClient.Connect(serverInfo[0]);
-                vClient.Login(serverInfo[1], serverInfo[2]);
+                Logger.Info("Connecting to server https://{0}/sdk", server);
+                vClient.Connect("https://" + server + "/sdk");
+                vClient.Login(user, password);
             }
             catch (VimException e)
             {
                 Logger.Error("EXCEPTION: {0}", e.Message);
                 Logger.Error("EXCEPTION: {0}", e.StackTrace);
+                throw;
             }
         }
 
+        public void Disconnect()
+        {
+            vClient.Logout();
+            vClient.Disconnect();
+        }
         public EntityViewBase GetViewByName<T>(string name)
         {
             NameValueCollection filter = new NameValueCollection();

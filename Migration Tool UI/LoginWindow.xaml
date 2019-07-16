@@ -1,0 +1,48 @@
+﻿<Window x:Class="Migration_Tool_UI.LoginWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:Migration_Tool_UI"
+        mc:Ignorable="d"
+        Title="Connect To Server" Height="220" Width="370">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="20"/>
+            <!--0-->
+            <RowDefinition Height="auto"/>
+            <!--1-->
+            <RowDefinition Height="auto"/>
+            <!--2-->
+            <RowDefinition Height="auto"/>
+            <!--3-->
+            <RowDefinition Height="auto"/>
+            <!--4-->
+            <RowDefinition Height="auto"/>
+            <!--5-->
+            <RowDefinition Height="*"/>
+            <!--6-->
+            <RowDefinition Height="20"/>
+            <!--7-->
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="80"/>
+            <ColumnDefinition Width="auto"/>
+        </Grid.ColumnDefinitions>
+
+        <Label Grid.Row="1" Grid.Column="0" Content="Server:" HorizontalContentAlignment="Right" Margin="0,0,0,10" Height="30" VerticalContentAlignment="Center"/>
+        <TextBox x:Name="txtServer" Grid.Row="1" Grid.Column="1" HorizontalAlignment="Right" Width="250" Height="30" VerticalAlignment="Top"
+                 Margin="0,0,20,0" VerticalContentAlignment="Center"></TextBox>
+        <Label Grid.Row="2" Grid.Column="0" Content="User:" HorizontalContentAlignment="Right" Margin="0,0,0,10" Height="30" VerticalContentAlignment="Center"/>
+        <TextBox x:Name="txtUser" Grid.Row="2" Grid.Column="1" HorizontalAlignment="Right" Width="250" Height="30" VerticalAlignment="Top"
+                 Margin="0,0,20,0" VerticalContentAlignment="Center"></TextBox>
+        <Label Grid.Row="3" Grid.Column="0" Content="Password:" HorizontalContentAlignment="Right" Margin="0,0,0,10" Height="30" VerticalAlignment="Center"/>
+        <PasswordBox x:Name="txtPassword" Grid.Row="3" Grid.Column="1" HorizontalAlignment="Right" Width="250" Height="30" VerticalAlignment="Top"
+                 Margin="0,0,20,0" VerticalContentAlignment="Center" ></PasswordBox>
+
+        <Button Grid.Row="4" Grid.Column="1" HorizontalAlignment="Right" Margin="0,0,20,0" Width="75" Height="30" Content="Login" Click="Button_Click"
+                IsDefault="True"/>
+    </Grid>
+    
+
+</Window>

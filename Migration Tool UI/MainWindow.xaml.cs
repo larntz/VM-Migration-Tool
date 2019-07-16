@@ -38,7 +38,7 @@ namespace Migration_Tool_UI
         private string _MigrationCSVFile = String.Empty;
         private bool _SortGrid = true;
 
-        private readonly VAPIConnection vapiConnection;        
+        private VAPIConnection vapiConnection;        
         private readonly DispatcherTimer _Timer;
         
         public static GridList MigrationGridList;        
@@ -61,11 +61,8 @@ namespace Migration_Tool_UI
             // Apply config           
             NLog.LogManager.Configuration = config;
 
-            // MigrationLogger.Info("Migration Logging Initialized");
-
-
             MigrationGridList = (GridList)this.Resources["MigrationGridList"];
-            vapiConnection = new VAPIConnection();
+
             _Timer = new DispatcherTimer(DispatcherPriority.Background)
             {
                 Interval = TimeSpan.FromSeconds(3)
@@ -84,6 +81,7 @@ namespace Migration_Tool_UI
                     _Timer.Stop();
                     btnSelectFile.IsEnabled = true;
                     btnStartMigration.Content = "Migration Complete";
+                    vapiConnection.Disconnect();
                 }
             };            
         }
@@ -196,10 +194,6 @@ namespace Migration_Tool_UI
         }
         private void SortGridCollection()
         {
-            //var remaining = "Remaining:" + (MigrationGridList.Where(x => x.StateId == (int)GridRow.STATEID.Waiting).Count() + MigrationGridList.Where(x => x.StateId == (int)GridRow.STATEID.Running).Count()).ToString().PadLeft(4);
-            //var success = "Success:" + MigrationGridList.Where(x => x.StateId == (int)GridRow.STATEID.Success).Count().ToString().PadLeft(4);
-            //var skipped = "Skipped:" + MigrationGridList.Where(x => x.StateId == (int)GridRow.STATEID.Skipped).Count().ToString().PadLeft(4);
-            //var error = "Error:" + MigrationGridList.Where(x => x.StateId == (int)GridRow.STATEID.Error).Count().ToString().PadLeft(4); 
             tbStatus.Text = "Remaining:" + (MigrationGridList.Where(x => x.StateId == (int)GridRow.STATEID.Waiting).Count() + MigrationGridList.Where(x => x.StateId == (int)GridRow.STATEID.Running).Count()).ToString().PadLeft(4) + ",".PadRight(3)
                     + "Success:" + MigrationGridList.Where(x => x.StateId == (int)GridRow.STATEID.Success).Count().ToString().PadLeft(4) + ",".PadRight(3) 
                     + "Skipped:" + MigrationGridList.Where(x => x.StateId == (int)GridRow.STATEID.Skipped).Count().ToString().PadLeft(4) + ",".PadRight(3) 
@@ -291,12 +285,23 @@ namespace Migration_Tool_UI
         }
         private void StartMigration_Button_Click(object sender, RoutedEventArgs e)
         {
-            btnStartMigration.IsEnabled = false;
-            btnStartMigration.Content = "Migration Running";
-            btnSelectFile.IsEnabled = false;
-            txtMigrationStatus.Text = "Migrating " + MigrationGridList.Count() + " VMs";
-            _SortGrid = true;
-            _Timer.Start();
+            LoginWindow loginWindow = new LoginWindow();
+            loginWindow.ShowDialog();
+
+            try
+            {
+                vapiConnection = new VAPIConnection(loginWindow.server, loginWindow.user, loginWindow.password);
+                btnStartMigration.IsEnabled = false;
+                btnStartMigration.Content = "Migration Running";
+                btnSelectFile.IsEnabled = false;
+                txtMigrationStatus.Text = "Migrating " + MigrationGridList.Count() + " VMs";
+                _SortGrid = true;
+                _Timer.Start();
+            }
+            catch(Exception VapiEx)
+            {
+                MessageBoxResult mbx = MessageBox.Show(VapiEx.Source + " Says:\n\n" + VapiEx.Message + "\n\n" + VapiEx.StackTrace, "Problem Logging into " + loginWindow.server.ToUpper(), MessageBoxButton.OK);
+            }
         }
 
         private void DgGridList_Scroll(object sender, System.Windows.Controls.Primitives.ScrollEventArgs e)
