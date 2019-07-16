@@ -6,7 +6,8 @@ Migration virtual machines in a vSphere environment.
 
 ## Requirements
 
-1. The VMware.PowerCLI PowerShell module is required, because this project references VMware.Vim.dll.
+1. .NET Framework 4.8
+2. The VMware.PowerCLI PowerShell module is required, because this project references VMware.Vim.dll.
 
 ### VMware.PowerCLI Installation
 
