@@ -36,10 +36,12 @@ namespace Migration_Tool_UI
     {
         private static readonly NLog.Logger MigrationLogger = NLog.LogManager.GetCurrentClassLogger();
         private string _MigrationCSVFile = String.Empty;
+        private bool _SortGrid = true;
+
         private readonly VAPIConnection vapiConnection;        
         private readonly DispatcherTimer _Timer;
         
-        public GridList MigrationGridList;        
+        public static GridList MigrationGridList;        
         
         public MainWindow()
         {
@@ -59,7 +61,7 @@ namespace Migration_Tool_UI
             // Apply config           
             NLog.LogManager.Configuration = config;
 
-            MigrationLogger.Info("Migration Logging Initialized");
+            // MigrationLogger.Info("Migration Logging Initialized");
 
 
             MigrationGridList = (GridList)this.Resources["MigrationGridList"];
@@ -81,6 +83,7 @@ namespace Migration_Tool_UI
                 {
                     _Timer.Stop();
                     btnSelectFile.IsEnabled = true;
+                    btnStartMigration.Content = "Migration Complete";
                 }
             };            
         }
@@ -89,12 +92,15 @@ namespace Migration_Tool_UI
             var progressHanlder = new Progress<MigrationTask>(value =>
             {
                 UpdateMigrationGridListItem(value);
+                SortGridCollection();
             });
 
             var migration = progressHanlder as IProgress<MigrationTask>;
 
             var result = await Task.Run(() =>
             {
+                var thisTask = new MigrationTask();
+
                 try
                 {
                     migrationVM.MoRef = vapiConnection.MigrateVirtualMachine(migrationVM);
@@ -107,67 +113,66 @@ namespace Migration_Tool_UI
                     {
                         MessageBoxResult exceptionBox = MessageBox.Show(e.Source + " Says:\n\n" + e.Message + "\n\n" + e.StackTrace, "Problem Migrating " + migrationVM.Name.ToUpper(), MessageBoxButton.OK);
                     });
-                    return new MigrationTask
-                    {
-                        State = "error",
-                        Start = DateTime.Now,
-                        EntityName = migrationVM.Name,
-                        DestinationStorage = migrationVM.DestinationStorage,
-                        DestinationCompute = migrationVM.DestinationCompute,
-                        Progress = migrationVM.Progress
-                    };
+
+                    thisTask.State = "error";
+                    thisTask.Start = DateTime.Now;
+                    thisTask.EntityName = migrationVM.Name;
+                    thisTask.DestinationCompute = migrationVM.DestinationCompute;
+                    thisTask.DestinationStorage = migrationVM.DestinationStorage;
+                    thisTask.Progress = migrationVM.Progress;
+
+                    return thisTask;
                 }
                 
                 if (migrationVM.MoRef == null)
                 {
                     MigrationLogger.Error("{0}: MigrateVirtualMachine() returned null", migrationVM.Name);
                     // task failed to start. Return what we know.
-                    return new MigrationTask
-                    {
-                        State = "error",
-                        Start = DateTime.Now,
-                        EntityName = migrationVM.Name,
-                        DestinationStorage = migrationVM.DestinationStorage,
-                        DestinationCompute = migrationVM.DestinationCompute,
-                        Progress = migrationVM.Progress
-                    };
+                    thisTask.State = "error";
+                    thisTask.Start = DateTime.Now;
+                    thisTask.EntityName = migrationVM.Name;
+                    thisTask.DestinationCompute = migrationVM.DestinationCompute;
+                    thisTask.DestinationStorage = migrationVM.DestinationStorage;
+                    thisTask.Progress = migrationVM.Progress;
+
+                    return thisTask;
                 }
                 else if(migrationVM.MoRef == "skipped-verifyfailed")
                 {
                     MigrationLogger.Info("{0}: Skipping VM", migrationVM.Name);
                     // task failed to start. Return what we know.
-                    return new MigrationTask
-                    {
-                        State = "skipped",
-                        StateReason = "VM is already at destination.",
-                        Start = DateTime.Now,
-                        EntityName = migrationVM.Name,
-                        DestinationStorage = migrationVM.DestinationStorage,
-                        DestinationCompute = migrationVM.DestinationCompute,
-                        Progress = migrationVM.Progress
-                    };
+                    thisTask.State = "error";
+                    thisTask.Start = DateTime.Now;
+                    thisTask.EntityName = migrationVM.Name;
+                    thisTask.DestinationCompute = migrationVM.DestinationCompute;
+                    thisTask.DestinationStorage = migrationVM.DestinationStorage;
+                    thisTask.Progress = migrationVM.Progress;
+
+                    return thisTask;
                 }
 
                 bool running = true;
                 do
                 {
-                    var thisTask = vapiConnection.GetTask(migrationVM.MoRef);
+                    thisTask = vapiConnection.GetTask(migrationVM.MoRef);
                     if (migration != null)                    
                         migration.Report(thisTask);
 
                     if (thisTask.State != "running")
                         running = false;
 
-                    Thread.Sleep(900);                   
+                    Thread.Sleep(500);                   
                     
                 } while (running);
 
                 return vapiConnection.GetTask(migrationVM.MoRef);
             });
 
-            UpdateMigrationGridListItem(result);            
+            UpdateMigrationGridListItem(result);
+            SortGridCollection();
         }
-        private void UpdateMigrationGridListItem(MigrationTask migrationTask)
+        
+        private static void UpdateMigrationGridListItem(MigrationTask migrationTask)
         {
             // If (MoRef == null) something went wrong. Try update this item by name and exit the function.
             var item = new GridRow();
@@ -186,15 +191,35 @@ namespace Migration_Tool_UI
             item.Progress = migrationTask.Progress;
             item.Start = migrationTask.Start;
             item.Finish = migrationTask.Finish;
-            MigrationLogger.Info("{@value0}", item);
+            MigrationLogger.Trace("{@value0}", item);
 
-            SortGridCollection();
         }
         private void SortGridCollection()
         {
-            ICollectionView migrationGridCollection = CollectionViewSource.GetDefaultView(dgGridList.ItemsSource);
-            migrationGridCollection.SortDescriptions.Clear();
-            migrationGridCollection.SortDescriptions.Add(new SortDescription("StateId", ListSortDirection.Ascending));
+            //var remaining = "Remaining:" + (MigrationGridList.Where(x => x.StateId == (int)GridRow.STATEID.Waiting).Count() + MigrationGridList.Where(x => x.StateId == (int)GridRow.STATEID.Running).Count()).ToString().PadLeft(4);
+            //var success = "Success:" + MigrationGridList.Where(x => x.StateId == (int)GridRow.STATEID.Success).Count().ToString().PadLeft(4);
+            //var skipped = "Skipped:" + MigrationGridList.Where(x => x.StateId == (int)GridRow.STATEID.Skipped).Count().ToString().PadLeft(4);
+            //var error = "Error:" + MigrationGridList.Where(x => x.StateId == (int)GridRow.STATEID.Error).Count().ToString().PadLeft(4); 
+            tbStatus.Text = "Remaining:" + (MigrationGridList.Where(x => x.StateId == (int)GridRow.STATEID.Waiting).Count() + MigrationGridList.Where(x => x.StateId == (int)GridRow.STATEID.Running).Count()).ToString().PadLeft(4) + ",".PadRight(3)
+                    + "Success:" + MigrationGridList.Where(x => x.StateId == (int)GridRow.STATEID.Success).Count().ToString().PadLeft(4) + ",".PadRight(3) 
+                    + "Skipped:" + MigrationGridList.Where(x => x.StateId == (int)GridRow.STATEID.Skipped).Count().ToString().PadLeft(4) + ",".PadRight(3) 
+                    + "Error:" + MigrationGridList.Where(x => x.StateId == (int)GridRow.STATEID.Error).Count().ToString().PadLeft(4);
+
+            if (_SortGrid)
+            {
+                ICollectionView migrationGridCollection = CollectionViewSource.GetDefaultView(dgGridList.ItemsSource);
+                migrationGridCollection.SortDescriptions.Clear();
+                migrationGridCollection.SortDescriptions.Add(new SortDescription("StateId", ListSortDirection.Ascending));
+
+                var border = VisualTreeHelper.GetChild(dgGridList, 0) as Decorator;
+                if (border != null)
+                {
+                    var dgScrollViewer = border.Child as ScrollViewer;
+                    dgScrollViewer.ScrollToTop();
+                }
+            }
+
+            MigrationLogger.Trace("GC.GetTotalMemory = {0}", GC.GetTotalMemory(true));
         }
         private void Parse_MigrationCSVFile()
         {
@@ -242,8 +267,9 @@ namespace Migration_Tool_UI
                     MigrationLogger.Trace("{0}: items in migrationList", MigrationGridList.Count);
                 }
 
-                btnStartMigration.IsEnabled = true;
             }
+            txtMigrationStatus.Text = "Ready to migrate " + MigrationGridList.Count().ToString() + " VMs";
+            btnStartMigration.IsEnabled = true;
         }
         private void SelectFile_Button_Click(object sender, RoutedEventArgs e)
         {
@@ -258,15 +284,35 @@ namespace Migration_Tool_UI
             if (dlg.ShowDialog() == true)
             {
                 _MigrationCSVFile = dlg.FileName;
-                txtSelectedFile.Text = _MigrationCSVFile;
+                txtSelectedFile.Text = dlg.SafeFileName;
+                txtSelectedFile.ToolTip = dlg.FileName;
                 Parse_MigrationCSVFile();
             }
         }
         private void StartMigration_Button_Click(object sender, RoutedEventArgs e)
         {
             btnStartMigration.IsEnabled = false;
+            btnStartMigration.Content = "Migration Running";
             btnSelectFile.IsEnabled = false;
+            txtMigrationStatus.Text = "Migrating " + MigrationGridList.Count() + " VMs";
+            _SortGrid = true;
             _Timer.Start();
+        }
+
+        private void DgGridList_Scroll(object sender, System.Windows.Controls.Primitives.ScrollEventArgs e)
+        {
+            _SortGrid = false;
+        }
+
+        private void DgGridList_MouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            _SortGrid = false;
+        }
+
+        private void BtnSortGrid_Click(object sender, RoutedEventArgs e)
+        {
+            _SortGrid = true;
+            SortGridCollection();
         }
     }
 }

@@ -119,7 +119,7 @@ namespace MToolVapiClient
                     Logger.Info("==========================================");
                     Logger.Info("Migrating {0} to {1}{2}", virtualMachine.Name, vmDetail.DestinationClusterComputeResource?.Name, vmDetail.DestinationHostSystem?.Name);
                     Logger.Info("Migrating {0} storage to {1}{2}", virtualMachine.Name, vmDetail.DestinationDatastore?.Name, vmDetail.DestinationStoragePod?.Name);
-                    if (vmRelocSpec.DeviceChange.Count() > 0)
+                    if (vmRelocSpec.DeviceChange?.Count() > 0)
                         foreach (var deviceChange in vmRelocSpec.DeviceChange)
                             Logger.Info("Migrating networking to {@0}", deviceChange);
                     Logger.Info("==========================================");

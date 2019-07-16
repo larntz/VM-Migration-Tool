@@ -133,7 +133,11 @@ namespace Migration_Tool_UI
                     span = f - s;
                 }
 
-                return span;                    
+                var zero = new TimeSpan(0);
+                if (span > zero)
+                    return span; 
+
+                return zero;
             }
 
         }
