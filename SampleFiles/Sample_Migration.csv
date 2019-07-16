@@ -1,0 +1,2 @@
+"Name","Networks","Cluster","Datastores","DestinationHost","DestinationDatastore"
+"SAMPLEVM01","Server Network VLAN-42","Production_Cluster","NAS_STORAGE_01","ESX-01","DS_CLUSTER_99"

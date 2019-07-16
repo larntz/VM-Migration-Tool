@@ -1,5 +1,7 @@
 ﻿using System;
 using System.ComponentModel;
+using System.Diagnostics;
+
 namespace Migration_Tool_UI
 {
     // Needed for PropertyChangedEventHandler in class GridRow
@@ -18,7 +20,7 @@ namespace Migration_Tool_UI
         }
 
         // TODO finish this for sorting...
-        public enum STATEID : int {Running, Waiting, Error, Success }
+        public enum STATEID : int {Running, Waiting, Error, Success, Skipped }
         public int StateId
         {
             get
@@ -31,6 +33,8 @@ namespace Migration_Tool_UI
                         return (int)STATEID.Error;
                     case "success":
                         return (int)STATEID.Success;
+                    case "skipped":
+                        return (int)STATEID.Skipped;
                     default:
                         return (int)STATEID.Waiting;
                 }
@@ -49,6 +53,23 @@ namespace Migration_Tool_UI
                 if (value != progress)
                 {
                     progress = value;
+                    NotifyPropertyChanged();
+                }
+            }
+        }
+
+        private string stateReason = String.Empty;
+        public new string StateReason
+        {
+            get
+            {
+                return stateReason;
+            }
+            set
+            {
+                if (value != stateReason)
+                {
+                    stateReason = value;
                     NotifyPropertyChanged();
                 }
             }
@@ -89,20 +110,34 @@ namespace Migration_Tool_UI
         }
 
 
-        public TimeSpan? MigrationDuration
+        public TimeSpan MigrationDuration
         {
             get
             {
+                var span = new TimeSpan();
                 if (start.HasValue && finish.HasValue)
                 {
                     long sticks = start.Value.Ticks / TimeSpan.TicksPerSecond;
                     DateTime s = new DateTime(sticks * TimeSpan.TicksPerSecond);
                     long fticks = finish.Value.Ticks / TimeSpan.TicksPerSecond;
                     DateTime f = new DateTime(fticks * TimeSpan.TicksPerSecond);
-                    return (f - s);
+                    span = f - s;
                 }
-                else
-                    return null;
+                else if (start.HasValue && !(finish.HasValue) && state != "skipped")
+                {
+                    long sticks = start.Value.Ticks / TimeSpan.TicksPerSecond;
+                    DateTime s = new DateTime(sticks * TimeSpan.TicksPerSecond);
+                    var now = DateTime.Now.ToUniversalTime();
+                    long fticks = now.Ticks / TimeSpan.TicksPerSecond;
+                    DateTime f = new DateTime(fticks * TimeSpan.TicksPerSecond);
+                    span = f - s;
+                }
+
+                var zero = new TimeSpan(0);
+                if (span > zero)
+                    return span; 
+
+                return zero;
             }
 
         }
