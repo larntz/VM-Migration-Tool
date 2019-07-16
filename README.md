@@ -2,7 +2,7 @@
 
 ## Description
 
-Migration virtual machines in a vSphere environment. 
+Migrate virtual machines in a vSphere environment. 
 
 ## Requirements
 
